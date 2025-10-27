@@ -88,33 +88,33 @@ func Mail(c *gin.Context) {
 }
 
 type MailServerForm struct {
-	Host     string `binding:"required,max=100"`
-	Port     int    `binding:"required,min=1,max=65535"`
-	User     string `binding:"required,email,max=64"`
-	Password string `binding:"required,max=64"`
+	Host     string `form:"host" json:"host" binding:"required,max=100"`
+	Port     int    `form:"port" json:"port" binding:"required,min=1,max=65535"`
+	User     string `form:"user" json:"user" binding:"required,email,max=64"`
+	Password string `form:"password" json:"password" binding:"required,max=64"`
 }
 
 // CreateMailUserForm 创建邮件用户表单
 type CreateMailUserForm struct {
-	Username string `json:"username" binding:"required,max=50"`
-	Email    string `json:"email" binding:"required,email,max=100"`
+	Username string `form:"username" json:"username" binding:"required,max=50"`
+	Email    string `form:"email" json:"email" binding:"required,email,max=100"`
 }
 
 // UpdateSlackForm 更新Slack配置表单
 type UpdateSlackForm struct {
-	Url      string `json:"url" binding:"required,url,max=200"`
-	Template string `json:"template" binding:"required"`
+	Url      string `form:"url" json:"url" binding:"required,url,max=200"`
+	Template string `form:"template" json:"template" binding:"required"`
 }
 
 // UpdateWebHookForm 更新WebHook配置表单
 type UpdateWebHookForm struct {
-	Url      string `json:"url" binding:"required,url,max=200"`
-	Template string `json:"template" binding:"required"`
+	Url      string `form:"url" json:"url" binding:"required,url,max=200"`
+	Template string `form:"template" json:"template" binding:"required"`
 }
 
 // CreateSlackChannelForm 创建Slack频道表单
 type CreateSlackChannelForm struct {
-	Channel string `json:"channel" binding:"required,max=50"`
+	Channel string `form:"channel" json:"channel" binding:"required,max=50"`
 }
 
 func UpdateMail(c *gin.Context) {

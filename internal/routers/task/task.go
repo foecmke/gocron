@@ -16,26 +16,26 @@ import (
 )
 
 type TaskForm struct {
-	Id               int
-	Level            models.TaskLevel `binding:"required,oneof=1 2"`
-	DependencyStatus models.TaskDependencyStatus
-	DependencyTaskId string
-	Name             string `binding:"required,max=32"`
-	Spec             string
-	Protocol         models.TaskProtocol   `binding:"oneof=1 2"`
-	Command          string                `binding:"required,max=256"`
-	HttpMethod       models.TaskHTTPMethod `binding:"oneof=1 2"`
-	Timeout          int                   `binding:"min=0,max=86400"`
-	Multi            int8                  `binding:"oneof=1 2"`
-	RetryTimes       int8
-	RetryInterval    int16
-	HostId           string
-	Tag              string
-	Remark           string
-	NotifyStatus     int8 `binding:"oneof=1 2 3 4"`
-	NotifyType       int8 `binding:"oneof=1 2 3 4"`
-	NotifyReceiverId string
-	NotifyKeyword    string
+	Id               int                         `form:"id" json:"id"`
+	Level            models.TaskLevel            `form:"level" json:"level" binding:"required,oneof=1 2"`
+	DependencyStatus models.TaskDependencyStatus `form:"dependency_status" json:"dependency_status"`
+	DependencyTaskId string                      `form:"dependency_task_id" json:"dependency_task_id"`
+	Name             string                      `form:"name" json:"name" binding:"required,max=32"`
+	Spec             string                      `form:"spec" json:"spec"`
+	Protocol         models.TaskProtocol         `form:"protocol" json:"protocol" binding:"oneof=1 2"`
+	Command          string                      `form:"command" json:"command" binding:"required,max=256"`
+	HttpMethod       models.TaskHTTPMethod       `form:"http_method" json:"http_method" binding:"oneof=1 2"`
+	Timeout          int                         `form:"timeout" json:"timeout" binding:"min=0,max=86400"`
+	Multi            int8                        `form:"multi" json:"multi" binding:"oneof=1 2"`
+	RetryTimes       int8                        `form:"retry_times" json:"retry_times"`
+	RetryInterval    int16                       `form:"retry_interval" json:"retry_interval"`
+	HostId           string                      `form:"host_id" json:"host_id"`
+	Tag              string                      `form:"tag" json:"tag"`
+	Remark           string                      `form:"remark" json:"remark"`
+	NotifyStatus     int8                        `form:"notify_status" json:"notify_status" binding:"oneof=1 2 3 4"`
+	NotifyType       int8                        `form:"notify_type" json:"notify_type" binding:"oneof=1 2 3 4"`
+	NotifyReceiverId string                      `form:"notify_receiver_id" json:"notify_receiver_id"`
+	NotifyKeyword    string                      `form:"notify_keyword" json:"notify_keyword"`
 }
 
 
