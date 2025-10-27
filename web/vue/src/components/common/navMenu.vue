@@ -25,6 +25,7 @@
           <el-submenu v-if="this.$store.getters.user.token" index="userStatus">
             <template slot="title">{{this.$store.getters.user.username}}</template>
             <el-menu-item index="/user/edit-my-password">修改密码</el-menu-item>
+            <el-menu-item index="/user/two-factor">双因素认证</el-menu-item>
             <el-menu-item @click="logout" index="/user/logout">退出</el-menu-item>
           </el-submenu>
         </el-col>

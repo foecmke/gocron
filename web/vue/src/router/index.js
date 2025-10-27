@@ -15,6 +15,7 @@ import UserEdit from '../pages/user/edit'
 import UserLogin from '../pages/user/login'
 import UserEditPassword from '../pages/user/editPassword'
 import UserEditMyPassword from '../pages/user/editMyPassword'
+import UserTwoFactor from '../pages/user/twoFactor'
 
 import NotificationEmail from '../pages/system/notification/email'
 import NotificationSlack from '../pages/system/notification/slack'
@@ -124,6 +125,14 @@ const router = new Router({
       path: '/user/edit-my-password',
       name: 'user-edit-my-password',
       component: UserEditMyPassword,
+      meta: {
+        noNeedAdmin: true
+      }
+    },
+    {
+      path: '/user/two-factor',
+      name: 'user-two-factor',
+      component: UserTwoFactor,
       meta: {
         noNeedAdmin: true
       }

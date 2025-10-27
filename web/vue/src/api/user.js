@@ -13,8 +13,12 @@ export default {
     httpClient.post('/user/store', data, callback)
   },
 
-  login (username, password, callback) {
-    httpClient.post('/user/login', {username, password}, callback)
+  login (username, password, twoFactorCode, callback) {
+    const data = { username, password }
+    if (twoFactorCode) {
+      data.two_factor_code = twoFactorCode
+    }
+    httpClient.post('/user/login', data, callback)
   },
 
   enable (id, callback) {
@@ -38,5 +42,21 @@ export default {
 
   editMyPassword (data, callback) {
     httpClient.post(`/user/editMyPassword`, data, callback)
+  },
+
+  get2FAStatus (callback) {
+    httpClient.get('/user/2fa/status', {}, callback)
+  },
+
+  setup2FA (callback) {
+    httpClient.get('/user/2fa/setup', {}, callback)
+  },
+
+  enable2FA (secret, code, callback) {
+    httpClient.post('/user/2fa/enable', { secret, code }, callback)
+  },
+
+  disable2FA (code, callback) {
+    httpClient.post('/user/2fa/disable', { code }, callback)
   }
 }

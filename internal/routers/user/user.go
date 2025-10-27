@@ -14,6 +14,7 @@ import (
 	"github.com/gocronx-team/gocron/internal/modules/logger"
 	"github.com/gocronx-team/gocron/internal/modules/utils"
 	"github.com/gocronx-team/gocron/internal/routers/base"
+	"github.com/pquerna/otp/totp"
 )
 
 const tokenDuration = 4 * time.Hour
@@ -289,6 +290,7 @@ func UpdateMyPassword(c *gin.Context) {
 func ValidateLogin(c *gin.Context) {
 	username := strings.TrimSpace(c.PostForm("username"))
 	password := strings.TrimSpace(c.PostForm("password"))
+	twoFactorCode := strings.TrimSpace(c.PostForm("two_factor_code"))
 	json := utils.JsonResponse{}
 	var result string
 	if username == "" || password == "" {
@@ -302,6 +304,25 @@ func ValidateLogin(c *gin.Context) {
 		c.String(http.StatusOK, result)
 		return
 	}
+
+	// 检查是否启用2FA
+	if userModel.TwoFactorOn == 1 {
+		if twoFactorCode == "" {
+			result = json.Success("需要输入2FA验证码", map[string]interface{}{
+				"require_2fa": true,
+			})
+			c.String(http.StatusOK, result)
+			return
+		}
+		// 验证TOTP码
+		valid := totp.Validate(twoFactorCode, userModel.TwoFactorKey)
+		if !valid {
+			result = json.CommonFailure("2FA验证码错误")
+			c.String(http.StatusOK, result)
+			return
+		}
+	}
+
 	loginLogModel := new(models.LoginLog)
 	loginLogModel.Username = userModel.Name
 	loginLogModel.Ip = c.ClientIP()

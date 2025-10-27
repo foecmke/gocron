@@ -29,6 +29,7 @@ require (
 require (
 	cloud.google.com/go v0.110.2 // indirect
 	github.com/Unknwon/com v0.0.0-20190321035513-0fed4efef755 // indirect
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/bytedance/sonic v1.14.0 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
@@ -50,6 +51,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pquerna/otp v1.5.0 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.54.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect

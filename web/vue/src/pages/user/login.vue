@@ -21,6 +21,11 @@
               <el-input v-model.trim="form.password" type="password" placeholder="请输入密码"></el-input>
             </el-col>
           </el-form-item>
+          <el-form-item label="验证码" v-if="require2FA">
+            <el-col :span="16">
+              <el-input v-model.trim="form.twoFactorCode" placeholder="请输入6位验证码" maxlength="6"></el-input>
+            </el-col>
+          </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="submit">登录</el-button>
           </el-form-item>
@@ -38,8 +43,10 @@ export default {
     return {
       form: {
         username: '',
-        password: ''
+        password: '',
+        twoFactorCode: ''
       },
+      require2FA: false,
       formRules: {
         username: [
           {required: true, message: '请输入用户名', trigger: 'blur'}
@@ -61,7 +68,20 @@ export default {
       })
     },
     login () {
-      userServcie.login(this.form.username, this.form.password, (data) => {
+      const params = {
+        username: this.form.username,
+        password: this.form.password
+      }
+      if (this.form.twoFactorCode) {
+        params.two_factor_code = this.form.twoFactorCode
+      }
+      
+      userServcie.login(params.username, params.password, params.two_factor_code, (data) => {
+        if (data.require_2fa) {
+          this.require2FA = true
+          this.$message.warning('请输入2FA验证码')
+          return
+        }
         this.$store.commit('setUser', {
           token: data.token,
           uid: data.uid,

@@ -65,6 +65,11 @@ func Register(r *gin.Engine) {
 		userGroup.POST("/disable/:id", user.Disable)
 		userGroup.POST("/editMyPassword", user.UpdateMyPassword)
 		userGroup.POST("/editPassword/:id", user.UpdatePassword)
+		// 2FA相关路由
+		userGroup.GET("/2fa/status", user.Get2FAStatus)
+		userGroup.GET("/2fa/setup", user.Setup2FA)
+		userGroup.POST("/2fa/enable", user.Enable2FA)
+		userGroup.POST("/2fa/disable", user.Disable2FA)
 	}
 
 	// 定时任务
@@ -300,6 +305,10 @@ func urlAuth(c *gin.Context) {
 		"/api/host/all",
 		"/api/user/login",
 		"/api/user/editMyPassword",
+		"/api/user/2fa/status",
+		"/api/user/2fa/setup",
+		"/api/user/2fa/enable",
+		"/api/user/2fa/disable",
 	}
 	for _, p := range allowPaths {
 		if p == uri {
