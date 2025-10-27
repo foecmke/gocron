@@ -3,17 +3,20 @@ package tasklog
 // 任务日志
 
 import (
-	"github.com/ouqiang/gocron/internal/models"
-	"github.com/ouqiang/gocron/internal/modules/logger"
-	"github.com/ouqiang/gocron/internal/modules/utils"
-	"github.com/ouqiang/gocron/internal/routers/base"
-	"github.com/ouqiang/gocron/internal/service"
-	"gopkg.in/macaron.v1"
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gocronx-team/gocron/internal/models"
+	"github.com/gocronx-team/gocron/internal/modules/logger"
+	"github.com/gocronx-team/gocron/internal/modules/utils"
+	"github.com/gocronx-team/gocron/internal/routers/base"
+	"github.com/gocronx-team/gocron/internal/service"
 )
 
-func Index(ctx *macaron.Context) string {
+func Index(c *gin.Context) {
 	logModel := new(models.TaskLog)
-	queryParams := parseQueryParams(ctx)
+	queryParams := parseQueryParams(c)
 	total, err := logModel.Total(queryParams)
 	if err != nil {
 		logger.Error(err)
@@ -23,76 +26,91 @@ func Index(ctx *macaron.Context) string {
 		logger.Error(err)
 	}
 	jsonResp := utils.JsonResponse{}
-
-	return jsonResp.Success(utils.SuccessContent, map[string]interface{}{
+	result := jsonResp.Success(utils.SuccessContent, map[string]interface{}{
 		"total": total,
 		"data":  logs,
 	})
+	c.String(http.StatusOK, result)
 }
 
 // 清空日志
-func Clear(ctx *macaron.Context) string {
+func Clear(c *gin.Context) {
 	taskLogModel := new(models.TaskLog)
 	_, err := taskLogModel.Clear()
 	json := utils.JsonResponse{}
+	var result string
 	if err != nil {
-		return json.CommonFailure(utils.FailureContent)
+		result = json.CommonFailure(utils.FailureContent)
+	} else {
+		result = json.Success(utils.SuccessContent, nil)
 	}
-
-	return json.Success(utils.SuccessContent, nil)
+	c.String(http.StatusOK, result)
 }
 
 // 停止运行中的任务
-func Stop(ctx *macaron.Context) string {
-	id := ctx.QueryInt64("id")
-	taskId := ctx.QueryInt("task_id")
+func Stop(c *gin.Context) {
+	id, _ := strconv.ParseInt(c.Query("id"), 10, 64)
+	taskId, _ := strconv.Atoi(c.Query("task_id"))
 	taskModel := new(models.Task)
 	task, err := taskModel.Detail(taskId)
 	json := utils.JsonResponse{}
+	var result string
 	if err != nil {
-		return json.CommonFailure("获取任务信息失败#"+err.Error(), err)
+		result = json.CommonFailure("获取任务信息失败#"+err.Error(), err)
+		c.String(http.StatusOK, result)
+		return
 	}
 	if task.Protocol != models.TaskRPC {
-		return json.CommonFailure("仅支持SHELL任务手动停止")
+		result = json.CommonFailure("仅支持SHELL任务手动停止")
+		c.String(http.StatusOK, result)
+		return
 	}
 	if len(task.Hosts) == 0 {
-		return json.CommonFailure("任务节点列表为空")
+		result = json.CommonFailure("任务节点列表为空")
+		c.String(http.StatusOK, result)
+		return
 	}
 	for _, host := range task.Hosts {
 		service.ServiceTask.Stop(host.Name, host.Port, id)
-
 	}
 
-	return json.Success("已执行停止操作, 请等待任务退出", nil)
+	result = json.Success("已执行停止操作, 请等待任务退出", nil)
+	c.String(http.StatusOK, result)
 }
 
 // 删除N个月前的日志
-func Remove(ctx *macaron.Context) string {
-	month := ctx.ParamsInt(":id")
+func Remove(c *gin.Context) {
+	month, _ := strconv.Atoi(c.Param("id"))
 	json := utils.JsonResponse{}
+	var result string
 	if month < 1 || month > 12 {
-		return json.CommonFailure("参数取值范围1-12")
+		result = json.CommonFailure("参数取值范围1-12")
+		c.String(http.StatusOK, result)
+		return
 	}
 	taskLogModel := new(models.TaskLog)
 	_, err := taskLogModel.Remove(month)
 	if err != nil {
-		return json.CommonFailure("删除失败", err)
+		result = json.CommonFailure("删除失败", err)
+	} else {
+		result = json.Success("删除成功", nil)
 	}
-
-	return json.Success("删除成功", nil)
+	c.String(http.StatusOK, result)
 }
 
 // 解析查询参数
-func parseQueryParams(ctx *macaron.Context) models.CommonMap {
+func parseQueryParams(c *gin.Context) models.CommonMap {
 	var params models.CommonMap = models.CommonMap{}
-	params["TaskId"] = ctx.QueryInt("task_id")
-	params["Protocol"] = ctx.QueryInt("protocol")
-	status := ctx.QueryInt("status")
+	taskId, _ := strconv.Atoi(c.Query("task_id"))
+	protocol, _ := strconv.Atoi(c.Query("protocol"))
+	status, _ := strconv.Atoi(c.Query("status"))
+	params["TaskId"] = taskId
+	params["Protocol"] = protocol
 	if status >= 0 {
 		status -= 1
 	}
 	params["Status"] = status
-	base.ParsePageAndPageSize(ctx, params)
+	base.ParsePageAndPageSize(c, params)
 
 	return params
 }

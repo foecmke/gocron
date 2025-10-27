@@ -1,17 +1,19 @@
 package loginlog
 
 import (
-	"github.com/ouqiang/gocron/internal/models"
-	"github.com/ouqiang/gocron/internal/modules/logger"
-	"github.com/ouqiang/gocron/internal/modules/utils"
-	"github.com/ouqiang/gocron/internal/routers/base"
-	macaron "gopkg.in/macaron.v1"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gocronx-team/gocron/internal/models"
+	"github.com/gocronx-team/gocron/internal/modules/logger"
+	"github.com/gocronx-team/gocron/internal/modules/utils"
+	"github.com/gocronx-team/gocron/internal/routers/base"
 )
 
-func Index(ctx *macaron.Context) string {
+func Index(c *gin.Context) {
 	loginLogModel := new(models.LoginLog)
 	params := models.CommonMap{}
-	base.ParsePageAndPageSize(ctx, params)
+	base.ParsePageAndPageSize(c, params)
 	total, err := loginLogModel.Total()
 	if err != nil {
 		logger.Error(err)
@@ -22,9 +24,9 @@ func Index(ctx *macaron.Context) string {
 	}
 
 	jsonResp := utils.JsonResponse{}
-
-	return jsonResp.Success(utils.SuccessContent, map[string]interface{}{
+	result := jsonResp.Success(utils.SuccessContent, map[string]interface{}{
 		"total": total,
 		"data":  loginLogs,
 	})
+	c.String(http.StatusOK, result)
 }

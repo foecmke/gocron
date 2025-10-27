@@ -3,18 +3,17 @@ package install
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 
-	macaron "gopkg.in/macaron.v1"
-
-	"github.com/go-macaron/binding"
+	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
 	"github.com/lib/pq"
-	"github.com/ouqiang/gocron/internal/models"
-	"github.com/ouqiang/gocron/internal/modules/app"
-	"github.com/ouqiang/gocron/internal/modules/setting"
-	"github.com/ouqiang/gocron/internal/modules/utils"
-	"github.com/ouqiang/gocron/internal/service"
+	"github.com/gocronx-team/gocron/internal/models"
+	"github.com/gocronx-team/gocron/internal/modules/app"
+	"github.com/gocronx-team/gocron/internal/modules/setting"
+	"github.com/gocronx-team/gocron/internal/modules/utils"
+	"github.com/gocronx-team/gocron/internal/service"
 )
 
 // 系统安装
@@ -33,37 +32,49 @@ type InstallForm struct {
 	AdminEmail           string `binding:"Required;Email;MaxSize(50)"`
 }
 
-func (f InstallForm) Error(ctx *macaron.Context, errs binding.Errors) {
-	if len(errs) == 0 {
-		return
-	}
-	json := utils.JsonResponse{}
-	content := json.CommonFailure("表单验证失败, 请检测输入")
-	ctx.Write([]byte(content))
-}
+
 
 // 安装
-func Store(ctx *macaron.Context, form InstallForm) string {
+func Store(c *gin.Context) {
+	var form InstallForm
+	if err := c.ShouldBindJSON(&form); err != nil {
+		json := utils.JsonResponse{}
+		result := json.CommonFailure("表单验证失败, 请检测输入")
+		c.String(http.StatusOK, result)
+		return
+	}
+	
 	json := utils.JsonResponse{}
+	var result string
 	if app.Installed {
-		return json.CommonFailure("系统已安装!")
+		result = json.CommonFailure("系统已安装!")
+		c.String(http.StatusOK, result)
+		return
 	}
 	if form.AdminPassword != form.ConfirmAdminPassword {
-		return json.CommonFailure("两次输入密码不匹配")
+		result = json.CommonFailure("两次输入密码不匹配")
+		c.String(http.StatusOK, result)
+		return
 	}
 	err := testDbConnection(form)
 	if err != nil {
-		return json.CommonFailure(err.Error())
+		result = json.CommonFailure(err.Error())
+		c.String(http.StatusOK, result)
+		return
 	}
 	// 写入数据库配置
 	err = writeConfig(form)
 	if err != nil {
-		return json.CommonFailure("数据库配置写入文件失败", err)
+		result = json.CommonFailure("数据库配置写入文件失败", err)
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	appConfig, err := setting.Read(app.AppConfig)
 	if err != nil {
-		return json.CommonFailure("读取应用配置失败", err)
+		result = json.CommonFailure("读取应用配置失败", err)
+		c.String(http.StatusOK, result)
+		return
 	}
 	app.Setting = appConfig
 
@@ -72,19 +83,25 @@ func Store(ctx *macaron.Context, form InstallForm) string {
 	migration := new(models.Migration)
 	err = migration.Install(form.DbName)
 	if err != nil {
-		return json.CommonFailure(fmt.Sprintf("创建数据库表失败-%s", err.Error()), err)
+		result = json.CommonFailure(fmt.Sprintf("创建数据库表失败-%s", err.Error()), err)
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	// 创建管理员账号
 	err = createAdminUser(form)
 	if err != nil {
-		return json.CommonFailure("创建管理员账号失败", err)
+		result = json.CommonFailure("创建管理员账号失败", err)
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	// 创建安装锁
 	err = app.CreateInstallLock()
 	if err != nil {
-		return json.CommonFailure("创建文件安装锁失败", err)
+		result = json.CommonFailure("创建文件安装锁失败", err)
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	// 更新版本号文件
@@ -94,7 +111,8 @@ func Store(ctx *macaron.Context, form InstallForm) string {
 	// 初始化定时任务
 	service.ServiceTask.Initialize()
 
-	return json.Success("安装成功", nil)
+	result = json.Success("安装成功", nil)
+	c.String(http.StatusOK, result)
 }
 
 // 配置写入文件

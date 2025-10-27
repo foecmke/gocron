@@ -5,15 +5,15 @@ import (
 	"strings"
 	"time"
 
-	macaron "gopkg.in/macaron.v1"
+	"github.com/gin-gonic/gin"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/go-xorm/core"
 	"github.com/go-xorm/xorm"
 	_ "github.com/lib/pq"
-	"github.com/ouqiang/gocron/internal/modules/app"
-	"github.com/ouqiang/gocron/internal/modules/logger"
-	"github.com/ouqiang/gocron/internal/modules/setting"
+	"github.com/gocronx-team/gocron/internal/modules/app"
+	"github.com/gocronx-team/gocron/internal/modules/logger"
+	"github.com/gocronx-team/gocron/internal/modules/setting"
 )
 
 type Status int8
@@ -88,7 +88,7 @@ func CreateDb() *xorm.Engine {
 		engine.SetTableMapper(mapper)
 	}
 	// 本地环境开启日志
-	if macaron.Env == macaron.DEV {
+	if gin.Mode() == gin.DebugMode {
 		engine.ShowSQL(true)
 		engine.Logger().SetLevel(core.LOG_DEBUG)
 	}

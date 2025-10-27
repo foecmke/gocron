@@ -8,23 +8,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-macaron/binding"
-	"github.com/go-macaron/gzip"
-	"github.com/go-macaron/toolbox"
-	"github.com/ouqiang/gocron/internal/modules/app"
-	"github.com/ouqiang/gocron/internal/modules/logger"
-	"github.com/ouqiang/gocron/internal/modules/utils"
-	"github.com/ouqiang/gocron/internal/routers/host"
-	"github.com/ouqiang/gocron/internal/routers/install"
-	"github.com/ouqiang/gocron/internal/routers/loginlog"
-	"github.com/ouqiang/gocron/internal/routers/manage"
-	"github.com/ouqiang/gocron/internal/routers/task"
-	"github.com/ouqiang/gocron/internal/routers/tasklog"
-	"github.com/ouqiang/gocron/internal/routers/user"
+	"github.com/gin-gonic/gin"
+	"github.com/gocronx-team/gocron/internal/modules/app"
+	"github.com/gocronx-team/gocron/internal/modules/logger"
+	"github.com/gocronx-team/gocron/internal/modules/utils"
+	"github.com/gocronx-team/gocron/internal/routers/host"
+	"github.com/gocronx-team/gocron/internal/routers/install"
+	"github.com/gocronx-team/gocron/internal/routers/loginlog"
+	"github.com/gocronx-team/gocron/internal/routers/manage"
+	"github.com/gocronx-team/gocron/internal/routers/task"
+	"github.com/gocronx-team/gocron/internal/routers/tasklog"
+	"github.com/gocronx-team/gocron/internal/routers/user"
 	"github.com/rakyll/statik/fs"
-	"gopkg.in/macaron.v1"
 
-	_ "github.com/ouqiang/gocron/internal/statik"
+	_ "github.com/gocronx-team/gocron/internal/statik"
 )
 
 const (
@@ -43,208 +40,216 @@ func init() {
 }
 
 // Register 路由注册
-func Register(m *macaron.Macaron) {
-	m.SetURLPrefix(urlPrefix)
-	// 所有GET方法，自动注册HEAD方法
-	m.SetAutoHead(true)
-	m.Get("/", func(ctx *macaron.Context) {
+func Register(r *gin.Engine) {
+	api := r.Group(urlPrefix)
+
+	// 首页
+	api.GET("/", func(c *gin.Context) {
 		file, err := statikFS.Open("/index.html")
 		if err != nil {
 			logger.Error("读取首页文件失败: %s", err)
-			ctx.WriteHeader(http.StatusInternalServerError)
+			c.Status(http.StatusInternalServerError)
 			return
 		}
-
-		io.Copy(ctx.Resp, file)
-
+		io.Copy(c.Writer, file)
 	})
+
 	// 系统安装
-	m.Group("/install", func() {
-		m.Post("/store", binding.Bind(install.InstallForm{}), install.Store)
-		m.Get("/status", func(ctx *macaron.Context) string {
+	installGroup := api.Group("/install")
+	{
+		installGroup.POST("/store", install.Store)
+		installGroup.GET("/status", func(c *gin.Context) {
 			jsonResp := utils.JsonResponse{}
-			return jsonResp.Success("", app.Installed)
+			c.String(http.StatusOK, jsonResp.Success("", app.Installed))
 		})
-	})
+	}
 
 	// 用户
-	m.Group("/user", func() {
-		m.Get("", user.Index)
-		m.Get("/:id", user.Detail)
-		m.Post("/store", binding.Bind(user.UserForm{}), user.Store)
-		m.Post("/remove/:id", user.Remove)
-		m.Post("/login", user.ValidateLogin)
-		m.Post("/enable/:id", user.Enable)
-		m.Post("/disable/:id", user.Disable)
-		m.Post("/editMyPassword", user.UpdateMyPassword)
-		m.Post("/editPassword/:id", user.UpdatePassword)
-	})
+	userGroup := api.Group("/user")
+	{
+		userGroup.GET("", user.Index)
+		userGroup.GET("/:id", user.Detail)
+		userGroup.POST("/store", user.Store)
+		userGroup.POST("/remove/:id", user.Remove)
+		userGroup.POST("/login", user.ValidateLogin)
+		userGroup.POST("/enable/:id", user.Enable)
+		userGroup.POST("/disable/:id", user.Disable)
+		userGroup.POST("/editMyPassword", user.UpdateMyPassword)
+		userGroup.POST("/editPassword/:id", user.UpdatePassword)
+	}
 
 	// 定时任务
-	m.Group("/task", func() {
-		m.Post("/store", binding.Bind(task.TaskForm{}), task.Store)
-		m.Get("/:id", task.Detail)
-		m.Get("", task.Index)
-		m.Get("/log", tasklog.Index)
-		m.Post("/log/clear", tasklog.Clear)
-		m.Post("/log/stop", tasklog.Stop)
-		m.Post("/remove/:id", task.Remove)
-		m.Post("/enable/:id", task.Enable)
-		m.Post("/disable/:id", task.Disable)
-		m.Get("/run/:id", task.Run)
-	})
+	taskGroup := api.Group("/task")
+	{
+		taskGroup.POST("/store", task.Store)
+		taskGroup.GET("/:id", task.Detail)
+		taskGroup.GET("", task.Index)
+		taskGroup.GET("/log", tasklog.Index)
+		taskGroup.POST("/log/clear", tasklog.Clear)
+		taskGroup.POST("/log/stop", tasklog.Stop)
+		taskGroup.POST("/remove/:id", task.Remove)
+		taskGroup.POST("/enable/:id", task.Enable)
+		taskGroup.POST("/disable/:id", task.Disable)
+		taskGroup.GET("/run/:id", task.Run)
+	}
 
 	// 主机
-	m.Group("/host", func() {
-		m.Get("/:id", host.Detail)
-		m.Post("/store", binding.Bind(host.HostForm{}), host.Store)
-		m.Get("", host.Index)
-		m.Get("/all", host.All)
-		m.Get("/ping/:id", host.Ping)
-		m.Post("/remove/:id", host.Remove)
-	})
+	hostGroup := api.Group("/host")
+	{
+		hostGroup.GET("/:id", host.Detail)
+		hostGroup.POST("/store", host.Store)
+		hostGroup.GET("", host.Index)
+		hostGroup.GET("/all", host.All)
+		hostGroup.GET("/ping/:id", host.Ping)
+		hostGroup.POST("/remove/:id", host.Remove)
+	}
 
 	// 管理
-	m.Group("/system", func() {
-		m.Group("/slack", func() {
-			m.Get("", manage.Slack)
-			m.Post("/update", manage.UpdateSlack)
-			m.Post("/channel", manage.CreateSlackChannel)
-			m.Post("/channel/remove/:id", manage.RemoveSlackChannel)
-		})
-		m.Group("/mail", func() {
-			m.Get("", manage.Mail)
-			m.Post("/update", binding.Bind(manage.MailServerForm{}), manage.UpdateMail)
-			m.Post("/user", manage.CreateMailUser)
-			m.Post("/user/remove/:id", manage.RemoveMailUser)
-		})
-		m.Group("/webhook", func() {
-			m.Get("", manage.WebHook)
-			m.Post("/update", manage.UpdateWebHook)
-		})
-		m.Get("/login-log", loginlog.Index)
-	})
+	systemGroup := api.Group("/system")
+	{
+		slackGroup := systemGroup.Group("/slack")
+		{
+			slackGroup.GET("", manage.Slack)
+			slackGroup.POST("/update", manage.UpdateSlack)
+			slackGroup.POST("/channel", manage.CreateSlackChannel)
+			slackGroup.POST("/channel/remove/:id", manage.RemoveSlackChannel)
+		}
+		mailGroup := systemGroup.Group("/mail")
+		{
+			mailGroup.GET("", manage.Mail)
+			mailGroup.POST("/update", manage.UpdateMail)
+			mailGroup.POST("/user", manage.CreateMailUser)
+			mailGroup.POST("/user/remove/:id", manage.RemoveMailUser)
+		}
+		webhookGroup := systemGroup.Group("/webhook")
+		{
+			webhookGroup.GET("", manage.WebHook)
+			webhookGroup.POST("/update", manage.UpdateWebHook)
+		}
+		systemGroup.GET("/login-log", loginlog.Index)
+	}
 
 	// API
-	m.Group("/v1", func() {
-		m.Post("/tasklog/remove/:id", tasklog.Remove)
-		m.Post("/task/enable/:id", task.Enable)
-		m.Post("/task/disable/:id", task.Disable)
-	}, apiAuth)
+	v1Group := api.Group("/v1")
+	v1Group.Use(apiAuth)
+	{
+		v1Group.POST("/tasklog/remove/:id", tasklog.Remove)
+		v1Group.POST("/task/enable/:id", task.Enable)
+		v1Group.POST("/task/disable/:id", task.Disable)
+	}
 
-	// 404错误
-	m.NotFound(func(ctx *macaron.Context) string {
+	// 404错误处理
+	r.NoRoute(func(c *gin.Context) {
 		jsonResp := utils.JsonResponse{}
-
-		return jsonResp.Failure(utils.NotFound, "您访问的页面不存在")
-	})
-	// 50x错误
-	m.InternalServerError(func(ctx *macaron.Context) string {
-		jsonResp := utils.JsonResponse{}
-
-		return jsonResp.Failure(utils.ServerError, "服务器内部错误, 请稍后再试")
+		c.String(http.StatusNotFound, jsonResp.Failure(utils.NotFound, "您访问的页面不存在"))
 	})
 }
 
 // 中间件注册
-func RegisterMiddleware(m *macaron.Macaron) {
-	m.Use(macaron.Logger())
-	m.Use(macaron.Recovery())
-	if macaron.Env != macaron.DEV {
-		m.Use(gzip.Gziper())
-	}
-	m.Use(
-		macaron.Static(
-			"",
-			macaron.StaticOptions{
-				Prefix:     staticDir,
-				FileSystem: statikFS,
-			},
-		),
-	)
-	if macaron.Env == macaron.DEV {
-		m.Use(toolbox.Toolboxer(m))
-	}
-	m.Use(macaron.Renderer())
-	m.Use(checkAppInstall)
-	m.Use(ipAuth)
-	m.Use(userAuth)
-	m.Use(urlAuth)
+func RegisterMiddleware(r *gin.Engine) {
+	// 静态文件服务 - 使用自定义处理器
+	r.GET("/"+staticDir+"/*filepath", func(c *gin.Context) {
+		filepath := c.Param("filepath")
+		file, err := statikFS.Open(filepath)
+		if err != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		defer file.Close()
+		io.Copy(c.Writer, file)
+	})
+
+	// 中间件
+	r.Use(checkAppInstall)
+	r.Use(ipAuth)
+	r.Use(userAuth)
+	r.Use(urlAuth)
 }
 
 // region 自定义中间件
 
 /** 检测应用是否已安装 **/
-func checkAppInstall(ctx *macaron.Context) {
+func checkAppInstall(c *gin.Context) {
 	if app.Installed {
+		c.Next()
 		return
 	}
-	if strings.HasPrefix(ctx.Req.URL.Path, "/install") || ctx.Req.URL.Path == "/" {
+	if strings.HasPrefix(c.Request.URL.Path, "/install") || c.Request.URL.Path == "/" {
+		c.Next()
 		return
 	}
 	jsonResp := utils.JsonResponse{}
-
 	data := jsonResp.Failure(utils.AppNotInstall, "应用未安装")
-	ctx.Write([]byte(data))
+	c.String(http.StatusOK, data)
+	c.Abort()
 }
 
 // IP验证, 通过反向代理访问gocron，需设置Header X-Real-IP才能获取到客户端真实IP
-func ipAuth(ctx *macaron.Context) {
+func ipAuth(c *gin.Context) {
 	if !app.Installed {
+		c.Next()
 		return
 	}
 	allowIpsStr := app.Setting.AllowIps
 	if allowIpsStr == "" {
+		c.Next()
 		return
 	}
-	clientIp := ctx.RemoteAddr()
+	clientIp := c.ClientIP()
 	allowIps := strings.Split(allowIpsStr, ",")
 	if utils.InStringSlice(allowIps, clientIp) {
+		c.Next()
 		return
 	}
 	logger.Warnf("非法IP访问-%s", clientIp)
 	jsonResp := utils.JsonResponse{}
-
 	data := jsonResp.Failure(utils.UnauthorizedError, "您无权限访问")
-
-	ctx.Write([]byte(data))
+	c.String(http.StatusOK, data)
+	c.Abort()
 }
 
 // 用户认证
-func userAuth(ctx *macaron.Context) {
+func userAuth(c *gin.Context) {
 	if !app.Installed {
+		c.Next()
 		return
 	}
-	user.RestoreToken(ctx)
-	if user.IsLogin(ctx) {
+	user.RestoreToken(c)
+	if user.IsLogin(c) {
+		c.Next()
 		return
 	}
-	uri := strings.TrimRight(ctx.Req.URL.Path, "/")
+	uri := strings.TrimRight(c.Request.URL.Path, "/")
 	if strings.HasPrefix(uri, "/v1") {
+		c.Next()
 		return
 	}
 	excludePaths := []string{"", "/user/login", "/install/status"}
 	for _, path := range excludePaths {
 		if uri == path {
+			c.Next()
 			return
 		}
 	}
 	jsonResp := utils.JsonResponse{}
 	data := jsonResp.Failure(utils.AuthError, "认证失败")
-	ctx.Write([]byte(data))
-
+	c.String(http.StatusOK, data)
+	c.Abort()
 }
 
 // URL权限验证
-func urlAuth(ctx *macaron.Context) {
+func urlAuth(c *gin.Context) {
 	if !app.Installed {
+		c.Next()
 		return
 	}
-	if user.IsAdmin(ctx) {
+	if user.IsAdmin(c) {
+		c.Next()
 		return
 	}
-	uri := strings.TrimRight(ctx.Req.URL.Path, "/")
+	uri := strings.TrimRight(c.Request.URL.Path, "/")
 	if strings.HasPrefix(uri, "/v1") {
+		c.Next()
 		return
 	}
 	// 普通用户允许访问的URL地址
@@ -260,22 +265,25 @@ func urlAuth(ctx *macaron.Context) {
 	}
 	for _, path := range allowPaths {
 		if path == uri {
+			c.Next()
 			return
 		}
 	}
 
 	jsonResp := utils.JsonResponse{}
-
 	data := jsonResp.Failure(utils.UnauthorizedError, "您无权限访问")
-	ctx.Write([]byte(data))
+	c.String(http.StatusOK, data)
+	c.Abort()
 }
 
 /** API接口签名验证 **/
-func apiAuth(ctx *macaron.Context) {
+func apiAuth(c *gin.Context) {
 	if !app.Installed {
+		c.Next()
 		return
 	}
 	if !app.Setting.ApiSignEnable {
+		c.Next()
 		return
 	}
 	apiKey := strings.TrimSpace(app.Setting.ApiKey)
@@ -283,34 +291,40 @@ func apiAuth(ctx *macaron.Context) {
 	json := utils.JsonResponse{}
 	if apiKey == "" || apiSecret == "" {
 		msg := json.CommonFailure("使用API前, 请先配置密钥")
-		ctx.Write([]byte(msg))
+		c.String(http.StatusOK, msg)
+		c.Abort()
 		return
 	}
 	currentTimestamp := time.Now().Unix()
-	time := ctx.QueryInt64("time")
-	if time <= 0 {
+	timeParam, err := strconv.ParseInt(c.Query("time"), 10, 64)
+	if err != nil || timeParam <= 0 {
 		msg := json.CommonFailure("参数time不能为空")
-		ctx.Write([]byte(msg))
+		c.String(http.StatusOK, msg)
+		c.Abort()
 		return
 	}
-	if time < (currentTimestamp - 1800) {
+	if timeParam < (currentTimestamp - 1800) {
 		msg := json.CommonFailure("time无效")
-		ctx.Write([]byte(msg))
+		c.String(http.StatusOK, msg)
+		c.Abort()
 		return
 	}
-	sign := ctx.QueryTrim("sign")
+	sign := strings.TrimSpace(c.Query("sign"))
 	if sign == "" {
 		msg := json.CommonFailure("参数sign不能为空")
-		ctx.Write([]byte(msg))
+		c.String(http.StatusOK, msg)
+		c.Abort()
 		return
 	}
-	raw := apiKey + strconv.FormatInt(time, 10) + strings.TrimSpace(ctx.Req.URL.Path) + apiSecret
+	raw := apiKey + strconv.FormatInt(timeParam, 10) + strings.TrimSpace(c.Request.URL.Path) + apiSecret
 	realSign := utils.Md5(raw)
 	if sign != realSign {
 		msg := json.CommonFailure("签名验证失败")
-		ctx.Write([]byte(msg))
+		c.String(http.StatusOK, msg)
+		c.Abort()
 		return
 	}
+	c.Next()
 }
 
 // endregion

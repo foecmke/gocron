@@ -2,16 +2,18 @@ package user
 
 import (
 	"errors"
+	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/ouqiang/gocron/internal/models"
-	"github.com/ouqiang/gocron/internal/modules/app"
-	"github.com/ouqiang/gocron/internal/modules/logger"
-	"github.com/ouqiang/gocron/internal/modules/utils"
-	"github.com/ouqiang/gocron/internal/routers/base"
-	"gopkg.in/macaron.v1"
+	"github.com/gin-gonic/gin"
+	"github.com/gocronx-team/gocron/internal/models"
+	"github.com/gocronx-team/gocron/internal/modules/app"
+	"github.com/gocronx-team/gocron/internal/modules/logger"
+	"github.com/gocronx-team/gocron/internal/modules/utils"
+	"github.com/gocronx-team/gocron/internal/routers/base"
 )
 
 const tokenDuration = 4 * time.Hour
@@ -28,8 +30,8 @@ type UserForm struct {
 }
 
 // Index 用户列表页
-func Index(ctx *macaron.Context) string {
-	queryParams := parseQueryParams(ctx)
+func Index(c *gin.Context) {
+	queryParams := parseQueryParams(c)
 	userModel := new(models.User)
 	users, err := userModel.List(queryParams)
 	if err != nil {
@@ -41,39 +43,49 @@ func Index(ctx *macaron.Context) string {
 	}
 
 	jsonResp := utils.JsonResponse{}
-
-	return jsonResp.Success(utils.SuccessContent, map[string]interface{}{
+	result := jsonResp.Success(utils.SuccessContent, map[string]interface{}{
 		"total": total,
 		"data":  users,
 	})
+	c.String(http.StatusOK, result)
 }
 
 // 解析查询参数
-func parseQueryParams(ctx *macaron.Context) models.CommonMap {
+func parseQueryParams(c *gin.Context) models.CommonMap {
 	params := models.CommonMap{}
-	base.ParsePageAndPageSize(ctx, params)
+	base.ParsePageAndPageSize(c, params)
 
 	return params
 }
 
 // Detail 用户详情
-func Detail(ctx *macaron.Context) string {
+func Detail(c *gin.Context) {
 	userModel := new(models.User)
-	id := ctx.ParamsInt(":id")
+	id, _ := strconv.Atoi(c.Param("id"))
 	err := userModel.Find(id)
 	if err != nil {
 		logger.Error(err)
 	}
 	jsonResp := utils.JsonResponse{}
+	var result string
 	if userModel.Id == 0 {
-		return jsonResp.Success(utils.SuccessContent, nil)
+		result = jsonResp.Success(utils.SuccessContent, nil)
+	} else {
+		result = jsonResp.Success(utils.SuccessContent, userModel)
 	}
-
-	return jsonResp.Success(utils.SuccessContent, userModel)
+	c.String(http.StatusOK, result)
 }
 
 // 保存任务
-func Store(ctx *macaron.Context, form UserForm) string {
+func Store(c *gin.Context) {
+	var form UserForm
+	if err := c.ShouldBindJSON(&form); err != nil {
+		json := utils.JsonResponse{}
+		result := json.CommonFailure("表单验证失败, 请检测输入")
+		c.String(http.StatusOK, result)
+		return
+	}
+	
 	form.Name = strings.TrimSpace(form.Name)
 	form.Email = strings.TrimSpace(form.Email)
 	form.Password = strings.TrimSpace(form.Password)
@@ -82,29 +94,43 @@ func Store(ctx *macaron.Context, form UserForm) string {
 	userModel := models.User{}
 	nameExists, err := userModel.UsernameExists(form.Name, form.Id)
 	if err != nil {
-		return json.CommonFailure(utils.FailureContent, err)
+		result := json.CommonFailure(utils.FailureContent, err)
+		c.String(http.StatusOK, result)
+		return
 	}
 	if nameExists > 0 {
-		return json.CommonFailure("用户名已存在")
+		result := json.CommonFailure("用户名已存在")
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	emailExists, err := userModel.EmailExists(form.Email, form.Id)
 	if err != nil {
-		return json.CommonFailure(utils.FailureContent, err)
+		result := json.CommonFailure(utils.FailureContent, err)
+		c.String(http.StatusOK, result)
+		return
 	}
 	if emailExists > 0 {
-		return json.CommonFailure("邮箱已存在")
+		result := json.CommonFailure("邮箱已存在")
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	if form.Id == 0 {
 		if form.Password == "" {
-			return json.CommonFailure("请输入密码")
+			result := json.CommonFailure("请输入密码")
+			c.String(http.StatusOK, result)
+			return
 		}
 		if form.ConfirmPassword == "" {
-			return json.CommonFailure("请再次输入密码")
+			result := json.CommonFailure("请再次输入密码")
+			c.String(http.StatusOK, result)
+			return
 		}
 		if form.Password != form.ConfirmPassword {
-			return json.CommonFailure("两次密码输入不一致")
+			result := json.CommonFailure("两次密码输入不一致")
+			c.String(http.StatusOK, result)
+			return
 		}
 	}
 	userModel.Name = form.Name
@@ -116,7 +142,9 @@ func Store(ctx *macaron.Context, form UserForm) string {
 	if form.Id == 0 {
 		_, err = userModel.Create()
 		if err != nil {
-			return json.CommonFailure("添加失败", err)
+			result := json.CommonFailure("添加失败", err)
+			c.String(http.StatusOK, result)
+			return
 		}
 	} else {
 		_, err = userModel.Update(form.Id, models.CommonMap{
@@ -126,115 +154,143 @@ func Store(ctx *macaron.Context, form UserForm) string {
 			"is_admin": form.IsAdmin,
 		})
 		if err != nil {
-			return json.CommonFailure("修改失败", err)
+			result := json.CommonFailure("修改失败", err)
+			c.String(http.StatusOK, result)
+			return
 		}
 	}
 
-	return json.Success("保存成功", nil)
+	result := json.Success("保存成功", nil)
+	c.String(http.StatusOK, result)
 }
 
 // 删除用户
-func Remove(ctx *macaron.Context) string {
-	id := ctx.ParamsInt(":id")
+func Remove(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
 	json := utils.JsonResponse{}
 
 	userModel := new(models.User)
 	_, err := userModel.Delete(id)
+	var result string
 	if err != nil {
-		return json.CommonFailure(utils.FailureContent, err)
+		result = json.CommonFailure(utils.FailureContent, err)
+	} else {
+		result = json.Success(utils.SuccessContent, nil)
 	}
-
-	return json.Success(utils.SuccessContent, nil)
+	c.String(http.StatusOK, result)
 }
 
 // 激活用户
-func Enable(ctx *macaron.Context) string {
-	return changeStatus(ctx, models.Enabled)
+func Enable(c *gin.Context) {
+	changeStatus(c, models.Enabled)
 }
 
 // 禁用用户
-func Disable(ctx *macaron.Context) string {
-	return changeStatus(ctx, models.Disabled)
+func Disable(c *gin.Context) {
+	changeStatus(c, models.Disabled)
 }
 
 // 改变任务状态
-func changeStatus(ctx *macaron.Context, status models.Status) string {
-	id := ctx.ParamsInt(":id")
+func changeStatus(c *gin.Context, status models.Status) {
+	id, _ := strconv.Atoi(c.Param("id"))
 	json := utils.JsonResponse{}
 	userModel := new(models.User)
 	_, err := userModel.Update(id, models.CommonMap{
 		"status": status,
 	})
+	var result string
 	if err != nil {
-		return json.CommonFailure(utils.FailureContent, err)
+		result = json.CommonFailure(utils.FailureContent, err)
+	} else {
+		result = json.Success(utils.SuccessContent, nil)
 	}
-
-	return json.Success(utils.SuccessContent, nil)
+	c.String(http.StatusOK, result)
 }
 
 // UpdatePassword 更新密码
-func UpdatePassword(ctx *macaron.Context) string {
-	id := ctx.ParamsInt(":id")
-	newPassword := ctx.QueryTrim("new_password")
-	confirmNewPassword := ctx.QueryTrim("confirm_new_password")
+func UpdatePassword(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	newPassword := strings.TrimSpace(c.Query("new_password"))
+	confirmNewPassword := strings.TrimSpace(c.Query("confirm_new_password"))
 	json := utils.JsonResponse{}
+	var result string
 	if newPassword == "" || confirmNewPassword == "" {
-		return json.CommonFailure("请输入密码")
+		result = json.CommonFailure("请输入密码")
+		c.String(http.StatusOK, result)
+		return
 	}
 	if newPassword != confirmNewPassword {
-		return json.CommonFailure("两次输入密码不一致")
+		result = json.CommonFailure("两次输入密码不一致")
+		c.String(http.StatusOK, result)
+		return
 	}
 	userModel := new(models.User)
 	_, err := userModel.UpdatePassword(id, newPassword)
 	if err != nil {
-		return json.CommonFailure("修改失败")
+		result = json.CommonFailure("修改失败")
+	} else {
+		result = json.Success("修改成功", nil)
 	}
-
-	return json.Success("修改成功", nil)
+	c.String(http.StatusOK, result)
 }
 
 // UpdateMyPassword 更新我的密码
-func UpdateMyPassword(ctx *macaron.Context) string {
-	oldPassword := ctx.QueryTrim("old_password")
-	newPassword := ctx.QueryTrim("new_password")
-	confirmNewPassword := ctx.QueryTrim("confirm_new_password")
+func UpdateMyPassword(c *gin.Context) {
+	oldPassword := strings.TrimSpace(c.Query("old_password"))
+	newPassword := strings.TrimSpace(c.Query("new_password"))
+	confirmNewPassword := strings.TrimSpace(c.Query("confirm_new_password"))
 	json := utils.JsonResponse{}
+	var result string
 	if oldPassword == "" || newPassword == "" || confirmNewPassword == "" {
-		return json.CommonFailure("原密码和新密码均不能为空")
+		result = json.CommonFailure("原密码和新密码均不能为空")
+		c.String(http.StatusOK, result)
+		return
 	}
 	if newPassword != confirmNewPassword {
-		return json.CommonFailure("两次输入密码不一致")
+		result = json.CommonFailure("两次输入密码不一致")
+		c.String(http.StatusOK, result)
+		return
 	}
 	if oldPassword == newPassword {
-		return json.CommonFailure("原密码与新密码不能相同")
+		result = json.CommonFailure("原密码与新密码不能相同")
+		c.String(http.StatusOK, result)
+		return
 	}
 	userModel := new(models.User)
-	if !userModel.Match(Username(ctx), oldPassword) {
-		return json.CommonFailure("原密码输入错误")
+	if !userModel.Match(Username(c), oldPassword) {
+		result = json.CommonFailure("原密码输入错误")
+		c.String(http.StatusOK, result)
+		return
 	}
-	_, err := userModel.UpdatePassword(Uid(ctx), newPassword)
+	_, err := userModel.UpdatePassword(Uid(c), newPassword)
 	if err != nil {
-		return json.CommonFailure("修改失败")
+		result = json.CommonFailure("修改失败")
+	} else {
+		result = json.Success("修改成功", nil)
 	}
-
-	return json.Success("修改成功", nil)
+	c.String(http.StatusOK, result)
 }
 
 // ValidateLogin 验证用户登录
-func ValidateLogin(ctx *macaron.Context) string {
-	username := ctx.QueryTrim("username")
-	password := ctx.QueryTrim("password")
+func ValidateLogin(c *gin.Context) {
+	username := strings.TrimSpace(c.Query("username"))
+	password := strings.TrimSpace(c.Query("password"))
 	json := utils.JsonResponse{}
+	var result string
 	if username == "" || password == "" {
-		return json.CommonFailure("用户名、密码不能为空")
+		result = json.CommonFailure("用户名、密码不能为空")
+		c.String(http.StatusOK, result)
+		return
 	}
 	userModel := new(models.User)
 	if !userModel.Match(username, password) {
-		return json.CommonFailure("用户名或密码错误")
+		result = json.CommonFailure("用户名或密码错误")
+		c.String(http.StatusOK, result)
+		return
 	}
 	loginLogModel := new(models.LoginLog)
 	loginLogModel.Username = userModel.Name
-	loginLogModel.Ip = ctx.RemoteAddr()
+	loginLogModel.Ip = c.ClientIP()
 	_, err := loginLogModel.Create()
 	if err != nil {
 		logger.Error("记录用户登录日志失败", err)
@@ -243,20 +299,23 @@ func ValidateLogin(ctx *macaron.Context) string {
 	token, err := generateToken(userModel)
 	if err != nil {
 		logger.Errorf("生成jwt失败: %s", err)
-		return json.Failure(utils.AuthError, "认证失败")
+		result = json.Failure(utils.AuthError, "认证失败")
+		c.String(http.StatusOK, result)
+		return
 	}
 
-	return json.Success(utils.SuccessContent, map[string]interface{}{
+	result = json.Success(utils.SuccessContent, map[string]interface{}{
 		"token":    token,
 		"uid":      userModel.Id,
 		"username": userModel.Name,
 		"is_admin": userModel.IsAdmin,
 	})
+	c.String(http.StatusOK, result)
 }
 
 // Username 获取session中的用户名
-func Username(ctx *macaron.Context) string {
-	usernameInterface, ok := ctx.Data["username"]
+func Username(c *gin.Context) string {
+	usernameInterface, ok := c.Get("username")
 	if !ok {
 		return ""
 	}
@@ -268,8 +327,8 @@ func Username(ctx *macaron.Context) string {
 }
 
 // Uid 获取session中的Uid
-func Uid(ctx *macaron.Context) int {
-	uidInterface, ok := ctx.Data["uid"]
+func Uid(c *gin.Context) int {
+	uidInterface, ok := c.Get("uid")
 	if !ok {
 		return 0
 	}
@@ -281,13 +340,13 @@ func Uid(ctx *macaron.Context) int {
 }
 
 // IsLogin 判断用户是否已登录
-func IsLogin(ctx *macaron.Context) bool {
-	return Uid(ctx) > 0
+func IsLogin(c *gin.Context) bool {
+	return Uid(c) > 0
 }
 
 // IsAdmin 判断当前用户是否是管理员
-func IsAdmin(ctx *macaron.Context) bool {
-	isAdmin, ok := ctx.Data["is_admin"]
+func IsAdmin(c *gin.Context) bool {
+	isAdmin, ok := c.Get("is_admin")
 	if !ok {
 		return false
 	}
@@ -314,8 +373,8 @@ func generateToken(user *models.User) (string, error) {
 }
 
 // 还原jwt
-func RestoreToken(ctx *macaron.Context) error {
-	authToken := ctx.Req.Header.Get("Auth-Token")
+func RestoreToken(c *gin.Context) error {
+	authToken := c.GetHeader("Auth-Token")
 	if authToken == "" {
 		return nil
 	}
@@ -330,9 +389,9 @@ func RestoreToken(ctx *macaron.Context) error {
 	if !ok {
 		return errors.New("invalid claims")
 	}
-	ctx.Data["uid"] = int(claims["uid"].(float64))
-	ctx.Data["username"] = claims["username"]
-	ctx.Data["is_admin"] = int(claims["is_admin"].(float64))
+	c.Set("uid", int(claims["uid"].(float64)))
+	c.Set("username", claims["username"])
+	c.Set("is_admin", int(claims["is_admin"].(float64)))
 
 	return nil
 }

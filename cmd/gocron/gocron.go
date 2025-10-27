@@ -4,18 +4,19 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
-	macaron "gopkg.in/macaron.v1"
+	"github.com/gin-gonic/gin"
 
-	"github.com/ouqiang/gocron/internal/models"
-	"github.com/ouqiang/gocron/internal/modules/app"
-	"github.com/ouqiang/gocron/internal/modules/logger"
-	"github.com/ouqiang/gocron/internal/modules/setting"
-	"github.com/ouqiang/gocron/internal/routers"
-	"github.com/ouqiang/gocron/internal/service"
+	"github.com/gocronx-team/gocron/internal/models"
+	"github.com/gocronx-team/gocron/internal/modules/app"
+	"github.com/gocronx-team/gocron/internal/modules/logger"
+	"github.com/gocronx-team/gocron/internal/modules/setting"
+	"github.com/gocronx-team/gocron/internal/routers"
+	"github.com/gocronx-team/gocron/internal/service"
 	"github.com/ouqiang/goutil"
 	"github.com/urfave/cli"
 )
@@ -78,14 +79,15 @@ func runWeb(ctx *cli.Context) {
 	initModule()
 	// 捕捉信号,配置热更新等
 	go catchSignal()
-	m := macaron.Classic()
+	r := gin.Default()
+	// 注册中间件
+	routers.RegisterMiddleware(r)
 	// 注册路由
-	routers.Register(m)
-	// 注册中间件.
-	routers.RegisterMiddleware(m)
+	routers.Register(r)
 	host := parseHost(ctx)
 	port := parsePort(ctx)
-	m.Run(host, port)
+	addr := fmt.Sprintf("%s:%d", host, port)
+	r.Run(addr)
 }
 
 func initModule() {
@@ -138,11 +140,11 @@ func setEnvironment(ctx *cli.Context) {
 
 	switch env {
 	case "test":
-		macaron.Env = macaron.TEST
+		gin.SetMode(gin.TestMode)
 	case "dev":
-		macaron.Env = macaron.DEV
+		gin.SetMode(gin.DebugMode)
 	default:
-		macaron.Env = macaron.PROD
+		gin.SetMode(gin.ReleaseMode)
 	}
 }
 

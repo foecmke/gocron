@@ -6,7 +6,7 @@ import (
 	"runtime"
 
 	"github.com/cihub/seelog"
-	"gopkg.in/macaron.v1"
+	"github.com/gin-gonic/gin"
 )
 
 // 日志库
@@ -33,14 +33,14 @@ func InitLogger() {
 }
 
 func Debug(v ...interface{}) {
-	if macaron.Env != macaron.DEV {
+	if gin.Mode() != gin.DebugMode {
 		return
 	}
 	write(DEBUG, v)
 }
 
 func Debugf(format string, v ...interface{}) {
-	if macaron.Env != macaron.DEV {
+	if gin.Mode() != gin.DebugMode {
 		return
 	}
 	writef(DEBUG, format, v...)
@@ -82,7 +82,7 @@ func write(level Level, v ...interface{}) {
 	defer logger.Flush()
 
 	content := ""
-	if macaron.Env == macaron.DEV {
+	if gin.Mode() == gin.DebugMode {
 		pc, file, line, ok := runtime.Caller(2)
 		if ok {
 			content = fmt.Sprintf("#%s#%s#%d行#", file, runtime.FuncForPC(pc).Name(), line)
@@ -108,7 +108,7 @@ func writef(level Level, format string, v ...interface{}) {
 	defer logger.Flush()
 
 	content := ""
-	if macaron.Env == macaron.DEV {
+	if gin.Mode() == gin.DebugMode {
 		pc, file, line, ok := runtime.Caller(2)
 		if ok {
 			content = fmt.Sprintf("#%s#%s#%d行#", file, runtime.FuncForPC(pc).Name(), line)
@@ -147,7 +147,7 @@ func getLogConfig() string {
     </seelog>`
 
 	consoleConfig := ""
-	if macaron.Env == macaron.DEV {
+	if gin.Mode() == gin.DebugMode {
 		consoleConfig =
 			`
             <filter levels="info,debug,critical,warn,error">

@@ -1,14 +1,15 @@
 package base
 
 import (
-	"github.com/ouqiang/gocron/internal/models"
-	"gopkg.in/macaron.v1"
+	"strconv"
+	"github.com/gin-gonic/gin"
+	"github.com/gocronx-team/gocron/internal/models"
 )
 
 // ParsePageAndPageSize 解析查询参数中的页数和每页数量
-func ParsePageAndPageSize(ctx *macaron.Context, params models.CommonMap) {
-	page := ctx.QueryInt("page")
-	pageSize := ctx.QueryInt("page_size")
+func ParsePageAndPageSize(c *gin.Context, params models.CommonMap) {
+	page, _ := strconv.Atoi(c.Query("page"))
+	pageSize, _ := strconv.Atoi(c.Query("page_size"))
 	if page <= 0 {
 		page = 1
 	}

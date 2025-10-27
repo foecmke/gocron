@@ -2,28 +2,28 @@ package host
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/go-macaron/binding"
-	"github.com/ouqiang/gocron/internal/models"
-	"github.com/ouqiang/gocron/internal/modules/logger"
-	"github.com/ouqiang/gocron/internal/modules/rpc/client"
-	"github.com/ouqiang/gocron/internal/modules/rpc/grpcpool"
-	"github.com/ouqiang/gocron/internal/modules/rpc/proto"
-	"github.com/ouqiang/gocron/internal/modules/utils"
-	"github.com/ouqiang/gocron/internal/routers/base"
-	"github.com/ouqiang/gocron/internal/service"
-	macaron "gopkg.in/macaron.v1"
+	"github.com/gin-gonic/gin"
+	"github.com/gocronx-team/gocron/internal/models"
+	"github.com/gocronx-team/gocron/internal/modules/logger"
+	"github.com/gocronx-team/gocron/internal/modules/rpc/client"
+	"github.com/gocronx-team/gocron/internal/modules/rpc/grpcpool"
+	"github.com/gocronx-team/gocron/internal/modules/rpc/proto"
+	"github.com/gocronx-team/gocron/internal/modules/utils"
+	"github.com/gocronx-team/gocron/internal/routers/base"
+	"github.com/gocronx-team/gocron/internal/service"
 )
 
 const testConnectionCommand = "echo hello"
 const testConnectionTimeout = 5
 
 // Index 主机列表
-func Index(ctx *macaron.Context) string {
+func Index(c *gin.Context) {
 	hostModel := new(models.Host)
-	queryParams := parseQueryParams(ctx)
+	queryParams := parseQueryParams(c)
 	total, err := hostModel.Total(queryParams)
 	if err != nil {
 		logger.Error(err)
@@ -34,15 +34,15 @@ func Index(ctx *macaron.Context) string {
 	}
 
 	jsonResp := utils.JsonResponse{}
-
-	return jsonResp.Success(utils.SuccessContent, map[string]interface{}{
+	result := jsonResp.Success(utils.SuccessContent, map[string]interface{}{
 		"total": total,
 		"data":  hosts,
 	})
+	c.String(http.StatusOK, result)
 }
 
 // All 获取所有主机
-func All(ctx *macaron.Context) string {
+func All(c *gin.Context) {
 	hostModel := new(models.Host)
 	hostModel.PageSize = -1
 	hosts, err := hostModel.List(models.CommonMap{})
@@ -51,22 +51,24 @@ func All(ctx *macaron.Context) string {
 	}
 
 	jsonResp := utils.JsonResponse{}
-
-	return jsonResp.Success(utils.SuccessContent, hosts)
+	result := jsonResp.Success(utils.SuccessContent, hosts)
+	c.String(http.StatusOK, result)
 }
 
 // Detail 主机详情
-func Detail(ctx *macaron.Context) string {
+func Detail(c *gin.Context) {
 	hostModel := new(models.Host)
-	id := ctx.ParamsInt(":id")
+	id, _ := strconv.Atoi(c.Param("id"))
 	err := hostModel.Find(id)
 	jsonResp := utils.JsonResponse{}
+	var result string
 	if err != nil || hostModel.Id == 0 {
 		logger.Errorf("获取主机详情失败#主机id-%d", id)
-		return jsonResp.Success(utils.SuccessContent, nil)
+		result = jsonResp.Success(utils.SuccessContent, nil)
+	} else {
+		result = jsonResp.Success(utils.SuccessContent, hostModel)
 	}
-
-	return jsonResp.Success(utils.SuccessContent, hostModel)
+	c.String(http.StatusOK, result)
 }
 
 type HostForm struct {
@@ -77,27 +79,31 @@ type HostForm struct {
 	Remark string
 }
 
-// Error 表单验证错误处理
-func (f HostForm) Error(ctx *macaron.Context, errs binding.Errors) {
-	if len(errs) == 0 {
-		return
-	}
-	json := utils.JsonResponse{}
-	content := json.CommonFailure("表单验证失败, 请检测输入")
-	ctx.Write([]byte(content))
-}
+
 
 // Store 保存、修改主机信息
-func Store(ctx *macaron.Context, form HostForm) string {
+func Store(c *gin.Context) {
+	var form HostForm
+	if err := c.ShouldBindJSON(&form); err != nil {
+		json := utils.JsonResponse{}
+		result := json.CommonFailure("表单验证失败, 请检测输入")
+		c.String(http.StatusOK, result)
+		return
+	}
+	
 	json := utils.JsonResponse{}
 	hostModel := new(models.Host)
 	id := form.Id
 	nameExist, err := hostModel.NameExists(form.Name, form.Id)
 	if err != nil {
-		return json.CommonFailure("操作失败", err)
+		result := json.CommonFailure("操作失败", err)
+		c.String(http.StatusOK, result)
+		return
 	}
 	if nameExist {
-		return json.CommonFailure("主机名已存在")
+		result := json.CommonFailure("主机名已存在")
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	hostModel.Name = strings.TrimSpace(form.Name)
@@ -108,7 +114,9 @@ func Store(ctx *macaron.Context, form HostForm) string {
 	oldHostModel := new(models.Host)
 	err = oldHostModel.Find(int(id))
 	if err != nil {
-		return json.CommonFailure("主机不存在")
+		result := json.CommonFailure("主机不存在")
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	if id > 0 {
@@ -118,7 +126,9 @@ func Store(ctx *macaron.Context, form HostForm) string {
 		id, err = hostModel.Create()
 	}
 	if err != nil {
-		return json.CommonFailure("保存失败", err)
+		result := json.CommonFailure("保存失败", err)
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	if !isCreate {
@@ -131,55 +141,73 @@ func Store(ctx *macaron.Context, form HostForm) string {
 		taskModel := new(models.Task)
 		tasks, err := taskModel.ActiveListByHostId(id)
 		if err != nil {
-			return json.CommonFailure("刷新任务主机信息失败", err)
+			result := json.CommonFailure("刷新任务主机信息失败", err)
+			c.String(http.StatusOK, result)
+			return
 		}
 		service.ServiceTask.BatchAdd(tasks)
 	}
 
-	return json.Success("保存成功", nil)
+	result := json.Success("保存成功", nil)
+	c.String(http.StatusOK, result)
 }
 
 // Remove 删除主机
-func Remove(ctx *macaron.Context) string {
-	id, err := strconv.Atoi(ctx.Params(":id"))
+func Remove(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
 	json := utils.JsonResponse{}
+	var result string
 	if err != nil {
-		return json.CommonFailure("参数错误", err)
+		result = json.CommonFailure("参数错误", err)
+		c.String(http.StatusOK, result)
+		return
 	}
 	taskHostModel := new(models.TaskHost)
 	exist, err := taskHostModel.HostIdExist(int16(id))
 	if err != nil {
-		return json.CommonFailure("操作失败", err)
+		result = json.CommonFailure("操作失败", err)
+		c.String(http.StatusOK, result)
+		return
 	}
 	if exist {
-		return json.CommonFailure("有任务引用此主机，不能删除")
+		result = json.CommonFailure("有任务引用此主机，不能删除")
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	hostModel := new(models.Host)
 	err = hostModel.Find(int(id))
 	if err != nil {
-		return json.CommonFailure("主机不存在")
+		result = json.CommonFailure("主机不存在")
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	_, err = hostModel.Delete(id)
 	if err != nil {
-		return json.CommonFailure("操作失败", err)
+		result = json.CommonFailure("操作失败", err)
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	addr := fmt.Sprintf("%s:%d", hostModel.Name, hostModel.Port)
 	grpcpool.Pool.Release(addr)
 
-	return json.Success("操作成功", nil)
+	result = json.Success("操作成功", nil)
+	c.String(http.StatusOK, result)
 }
 
 // Ping 测试主机是否可连接
-func Ping(ctx *macaron.Context) string {
-	id := ctx.ParamsInt(":id")
+func Ping(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
 	hostModel := new(models.Host)
 	err := hostModel.Find(id)
 	json := utils.JsonResponse{}
+	var result string
 	if err != nil || hostModel.Id <= 0 {
-		return json.CommonFailure("主机不存在", err)
+		result = json.CommonFailure("主机不存在", err)
+		c.String(http.StatusOK, result)
+		return
 	}
 
 	taskReq := &rpc.TaskRequest{}
@@ -187,18 +215,20 @@ func Ping(ctx *macaron.Context) string {
 	taskReq.Timeout = testConnectionTimeout
 	output, err := client.Exec(hostModel.Name, hostModel.Port, taskReq)
 	if err != nil {
-		return json.CommonFailure("连接失败-"+err.Error()+" "+output, err)
+		result = json.CommonFailure("连接失败-"+err.Error()+" "+output, err)
+	} else {
+		result = json.Success("连接成功", nil)
 	}
-
-	return json.Success("连接成功", nil)
+	c.String(http.StatusOK, result)
 }
 
 // 解析查询参数
-func parseQueryParams(ctx *macaron.Context) models.CommonMap {
+func parseQueryParams(c *gin.Context) models.CommonMap {
 	var params = models.CommonMap{}
-	params["Id"] = ctx.QueryInt("id")
-	params["Name"] = ctx.QueryTrim("name")
-	base.ParsePageAndPageSize(ctx, params)
+	id, _ := strconv.Atoi(c.Query("id"))
+	params["Id"] = id
+	params["Name"] = strings.TrimSpace(c.Query("name"))
+	base.ParsePageAndPageSize(c, params)
 
 	return params
 }
