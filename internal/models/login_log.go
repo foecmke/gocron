@@ -9,7 +9,7 @@ type LoginLog struct {
 	Id        int       `json:"id" gorm:"primaryKey;autoIncrement"`
 	Username  string    `json:"username" gorm:"type:varchar(32);not null"`
 	Ip        string    `json:"ip" gorm:"type:varchar(15);not null"`
-	CreatedAt time.Time `json:"created" gorm:"autoCreateTime"`
+	CreatedAt time.Time `json:"created" gorm:"column:created;autoCreateTime"`
 	BaseModel `json:"-" gorm:"-"`
 }
 
