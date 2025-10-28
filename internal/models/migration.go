@@ -37,13 +37,14 @@ func (migration *Migration) Upgrade(oldVersionId int) {
 		return
 	}
 
-	versionIds := []int{110, 122, 130, 140, 150}
+	versionIds := []int{110, 122, 130, 140, 150, 151}
 	upgradeFuncs := []func(*gorm.DB) error{
 		migration.upgradeFor110,
 		migration.upgradeFor122,
 		migration.upgradeFor130,
 		migration.upgradeFor140,
 		migration.upgradeFor150,
+		migration.upgradeFor151,
 	}
 
 	startIndex := -1
@@ -228,6 +229,31 @@ func (m *Migration) upgradeFor150(tx *gorm.DB) error {
 	}
 
 	logger.Info("已升级到v1.5\n")
+
+	return nil
+}
+
+// 升级到v1.5.1版本 - 添加2FA字段
+func (m *Migration) upgradeFor151(tx *gorm.DB) error {
+	logger.Info("开始升级到v1.5.1 - 添加2FA支持")
+
+	// user表增加two_factor_key字段
+	if !tx.Migrator().HasColumn(&User{}, "two_factor_key") {
+		err := tx.Migrator().AddColumn(&User{}, "two_factor_key")
+		if err != nil {
+			return err
+		}
+	}
+
+	// user表增加two_factor_on字段
+	if !tx.Migrator().HasColumn(&User{}, "two_factor_on") {
+		err := tx.Migrator().AddColumn(&User{}, "two_factor_on")
+		if err != nil {
+			return err
+		}
+	}
+
+	logger.Info("已升级到v1.5.1\n")
 
 	return nil
 }
