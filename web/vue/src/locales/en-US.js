@@ -145,7 +145,7 @@ export default {
     manage: 'System Management',
     loginLog: 'Login Log',
     logRetention: 'Log Retention',
-    notification: 'Notification Settings',
+    notification: 'Notifications',
     email: 'Email Notification',
     slack: 'Slack Notification',
     webhook: 'WebHook Notification',
