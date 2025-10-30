@@ -12,7 +12,7 @@
         :closable="false"
         style="margin-bottom: 20px;"
       />
-      <el-form ref="formRef" :model="form" :label-width="locale === 'zh-CN' ? '80px' : '120px'" :rules="formRules">
+      <el-form ref="formRef" :model="form" label-width="120px" :rules="formRules">
         <el-form-item :label="t('login.username')" prop="username">
           <el-input v-model.trim="form.username" :placeholder="t('login.usernamePlaceholder')" size="large" />
         </el-form-item>
@@ -23,7 +23,7 @@
           <el-input v-model.trim="form.twoFactorCode" :placeholder="t('login.verifyCodePlaceholder')" maxlength="6" @keyup.enter="submit" size="large" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="submit" :loading="loading" style="width: 100%;" size="large">{{ t('login.login') }}</el-button>
+          <el-button type="primary" @click="submit" :loading="loading" class="login-button" size="large">{{ t('login.login') }}</el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -169,16 +169,21 @@ const submit = async () => {
 .login-title {
   text-align: center;
   margin: 0 0 32px 0;
-  padding-left: 80px;
   font-size: 26px;
   color: #1f2937;
   font-weight: 600;
   letter-spacing: -0.5px;
 }
 
-@media (max-width: 768px) {
-  .login-title {
-    padding-left: 0;
-  }
+.el-button--large {
+  height: 40px;
+  line-height: 40px;
+  padding: 0 15px;
+}
+
+.login-button {
+  width: calc(100% + 120px);
+  margin-left: -90px;
+  margin-right: -20px;
 }
 </style>
