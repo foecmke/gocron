@@ -36,7 +36,7 @@
 
 * Go 1.23+
 * MySQL/PostgreSQL/SQLite
-* Node.js 18+ (前端开发)
+* Node.js 20+ (前端开发)
 
 ## 快速开始
 
