@@ -209,8 +209,8 @@ This project is developed and refactored based on [gocron](https://github.com/ou
 * Two-Factor Authentication (2FA) security features
 * Automatic log cleanup system
 * Modern Vue3 frontend architecture
-* Backend web framework refactoring (upgraded to modern Gin framework)
-* Database migration tool refactoring (GORM-based automatic migration system)
+* Backend web framework refactoring (upgraded to modern [gin](https://github.com/gin-gonic/gin) framework)
+* Database migration tool refactoring ([gorm](https://github.com/go-gorm/gorm)-based automatic migration system)
 * Better user experience and interface design
 
 Thanks to the original project author for their contribution. I also hope everyone will give the project more stars and submit more issues to encourage the project's development. Let's improve this project together!
