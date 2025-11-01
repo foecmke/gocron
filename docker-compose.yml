@@ -1,5 +1,8 @@
 services:
   gocron:
+    build:
+      context: .
+      dockerfile: Dockerfile.gocron
     image: gocronx/gocron:latest
     container_name: gocron
     ports:
