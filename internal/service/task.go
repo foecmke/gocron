@@ -25,6 +25,11 @@ var (
 )
 
 var (
+	httpGetFunc        = httpclient.Get
+	httpPostParamsFunc = httpclient.PostParams
+	notifyPushFunc     = notify.Push
+	sleepFunc          = time.Sleep
+
 	// 定时任务调度管理器
 	serviceCron *cron.Cron
 
@@ -263,7 +268,7 @@ func (h *HTTPHandler) Run(taskModel models.Task, taskUniqueId int64) (result str
 	}
 	var resp httpclient.ResponseWrapper
 	if taskModel.HttpMethod == models.TaskHTTPMethodGet {
-		resp = httpclient.Get(taskModel.Command, taskModel.Timeout)
+		resp = httpGetFunc(taskModel.Command, taskModel.Timeout)
 	} else {
 		urlFields := strings.Split(taskModel.Command, "?")
 		taskModel.Command = urlFields[0]
@@ -271,7 +276,7 @@ func (h *HTTPHandler) Run(taskModel models.Task, taskUniqueId int64) (result str
 		if len(urlFields) >= 2 {
 			params = urlFields[1]
 		}
-		resp = httpclient.PostParams(taskModel.Command, params, taskModel.Timeout)
+		resp = httpPostParamsFunc(taskModel.Command, params, taskModel.Timeout)
 	}
 	// 返回状态码非200，均为失败
 	if resp.StatusCode != http.StatusOK {
@@ -514,7 +519,7 @@ func SendNotification(taskModel models.Task, taskResult TaskResult) {
 		"task_id":          taskModel.Id,
 		"remark":           taskModel.Remark,
 	}
-	notify.Push(msg)
+	notifyPushFunc(msg)
 }
 
 // 执行具体任务
@@ -541,10 +546,10 @@ func execJob(handler Handler, taskModel models.Task, taskUniqueId int64) TaskRes
 		if i < execTimes {
 			logger.Warnf("任务执行失败#任务id-%d#重试第%d次#输出-%s#错误-%s", taskModel.Id, i, output, err.Error())
 			if taskModel.RetryInterval > 0 {
-				time.Sleep(time.Duration(taskModel.RetryInterval) * time.Second)
+				sleepFunc(time.Duration(taskModel.RetryInterval) * time.Second)
 			} else {
 				// 默认重试间隔时间，每次递增1分钟
-				time.Sleep(time.Duration(i) * time.Minute)
+				sleepFunc(time.Duration(i) * time.Minute)
 			}
 		}
 	}

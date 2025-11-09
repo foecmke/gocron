@@ -1,0 +1,261 @@
+package service
+
+import (
+	"errors"
+	"net/http"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/gocronx-team/gocron/internal/models"
+	"github.com/gocronx-team/gocron/internal/modules/httpclient"
+	"github.com/gocronx-team/gocron/internal/modules/logger"
+	"github.com/gocronx-team/gocron/internal/modules/notify"
+)
+
+func TestMain(m *testing.M) {
+	_ = os.MkdirAll("log", 0o755)
+	logger.InitLogger()
+	os.Exit(m.Run())
+}
+
+func TestHTTPHandlerRunGetCapsTimeout(t *testing.T) {
+	original := httpGetFunc
+	defer func() { httpGetFunc = original }()
+
+	var capturedTimeout int
+	httpGetFunc = func(url string, timeout int) httpclient.ResponseWrapper {
+		if url != "http://example.com" {
+			t.Fatalf("unexpected url %s", url)
+		}
+		capturedTimeout = timeout
+		return httpclient.ResponseWrapper{StatusCode: http.StatusOK, Body: "ok"}
+	}
+
+	handler := &HTTPHandler{}
+	task := models.Task{
+		Command:    "http://example.com",
+		Timeout:    1000,
+		HttpMethod: models.TaskHTTPMethodGet,
+	}
+	result, err := handler.Run(task, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "ok" {
+		t.Fatalf("unexpected result %s", result)
+	}
+	if capturedTimeout != HttpExecTimeout {
+		t.Fatalf("expected timeout capped to %d, got %d", HttpExecTimeout, capturedTimeout)
+	}
+}
+
+func TestHTTPHandlerRunPostParsesParams(t *testing.T) {
+	original := httpPostParamsFunc
+	defer func() { httpPostParamsFunc = original }()
+
+	var capturedURL, capturedParams string
+	var capturedTimeout int
+	httpPostParamsFunc = func(url, params string, timeout int) httpclient.ResponseWrapper {
+		capturedURL = url
+		capturedParams = params
+		capturedTimeout = timeout
+		return httpclient.ResponseWrapper{StatusCode: http.StatusOK, Body: "posted"}
+	}
+
+	handler := &HTTPHandler{}
+	task := models.Task{
+		Command:    "http://example.com/cmd?foo=bar",
+		Timeout:    10,
+		HttpMethod: models.TaskHttpMethodPost,
+	}
+	result, err := handler.Run(task, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "posted" {
+		t.Fatalf("unexpected result %s", result)
+	}
+	if capturedURL != "http://example.com/cmd" || capturedParams != "foo=bar" {
+		t.Fatalf("unexpected url/params %s %s", capturedURL, capturedParams)
+	}
+	if capturedTimeout != 10 {
+		t.Fatalf("expected timeout 10, got %d", capturedTimeout)
+	}
+}
+
+func TestHTTPHandlerRunReturnsErrorForNon200(t *testing.T) {
+	original := httpGetFunc
+	defer func() { httpGetFunc = original }()
+
+	httpGetFunc = func(url string, timeout int) httpclient.ResponseWrapper {
+		return httpclient.ResponseWrapper{StatusCode: http.StatusInternalServerError, Body: "bad"}
+	}
+	handler := &HTTPHandler{}
+	task := models.Task{Command: "http://example.com", HttpMethod: models.TaskHTTPMethodGet}
+	result, err := handler.Run(task, 1)
+	if err == nil {
+		t.Fatal("expected error for non-200 response")
+	}
+	if result != "bad" {
+		t.Fatalf("unexpected result %s", result)
+	}
+}
+
+type fakeHandler struct {
+	results   []handlerResponse
+	callCount int
+}
+
+type handlerResponse struct {
+	result string
+	err    error
+}
+
+func (f *fakeHandler) Run(taskModel models.Task, taskUniqueId int64) (string, error) {
+	res := f.results[f.callCount]
+	f.callCount++
+	return res.result, res.err
+}
+
+func TestExecJobRetriesUntilSuccess(t *testing.T) {
+	originalSleep := sleepFunc
+	defer func() { sleepFunc = originalSleep }()
+
+	sleepCalls := 0
+	sleepFunc = func(d time.Duration) {
+		sleepCalls++
+	}
+
+	handler := &fakeHandler{
+		results: []handlerResponse{
+			{result: "first", err: errors.New("fail1")},
+			{result: "second", err: nil},
+		},
+	}
+	task := models.Task{Id: 1, RetryTimes: 1, RetryInterval: 1}
+	result := execJob(handler, task, 1)
+	if result.Result != "second" || result.Err != nil {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if result.RetryTimes != 1 {
+		t.Fatalf("expected RetryTimes 1, got %d", result.RetryTimes)
+	}
+	if handler.callCount != 2 {
+		t.Fatalf("expected 2 handler calls, got %d", handler.callCount)
+	}
+	if sleepCalls != 1 {
+		t.Fatalf("expected 1 sleep call, got %d", sleepCalls)
+	}
+}
+
+func TestExecJobReturnsErrorAfterRetriesExhausted(t *testing.T) {
+	originalSleep := sleepFunc
+	defer func() { sleepFunc = originalSleep }()
+	sleepCount := 0
+	sleepFunc = func(d time.Duration) {
+		sleepCount++
+	}
+
+	handler := &fakeHandler{
+		results: []handlerResponse{
+			{result: "first", err: errors.New("fail1")},
+			{result: "second", err: errors.New("fail2")},
+			{result: "third", err: errors.New("fail3")},
+		},
+	}
+	task := models.Task{Id: 2, RetryTimes: 2, RetryInterval: 1}
+	result := execJob(handler, task, 1)
+	if result.Err == nil {
+		t.Fatal("expected error")
+	}
+	if result.RetryTimes != task.RetryTimes {
+		t.Fatalf("expected retryTimes %d, got %d", task.RetryTimes, result.RetryTimes)
+	}
+	if handler.callCount != 3 {
+		t.Fatalf("expected 3 handler calls, got %d", handler.callCount)
+	}
+	if sleepCount != 2 {
+		t.Fatalf("expected 2 sleep calls, got %d", sleepCount)
+	}
+}
+
+func TestSendNotificationBehavior(t *testing.T) {
+	type expectation struct {
+		name   string
+		task   models.Task
+		result TaskResult
+		count  int
+		check  func(t *testing.T, msg notify.Message)
+	}
+	tests := []expectation{
+		{
+			name:  "disabled",
+			task:  models.Task{NotifyStatus: 0},
+			count: 0,
+		},
+		{
+			name:   "failOnlySuccess",
+			task:   models.Task{NotifyStatus: 1, NotifyType: 1, NotifyReceiverId: "user"},
+			result: TaskResult{Result: "ok", Err: nil},
+			count:  0,
+		},
+		{
+			name:   "failOnlyTriggered",
+			task:   models.Task{Name: "job", NotifyStatus: 1, NotifyType: 1, NotifyReceiverId: "user"},
+			result: TaskResult{Result: "bad", Err: errors.New("boom")},
+			count:  1,
+		},
+		{
+			name:   "keywordMismatch",
+			task:   models.Task{NotifyStatus: 3, NotifyType: 3, NotifyKeyword: "ERROR"},
+			result: TaskResult{Result: "all good"},
+			count:  0,
+		},
+		{
+			name:   "keywordMatch",
+			task:   models.Task{Name: "job", NotifyStatus: 3, NotifyType: 3, NotifyKeyword: "ERROR"},
+			result: TaskResult{Result: "found ERROR", Err: nil},
+			count:  1,
+			check: func(t *testing.T, msg notify.Message) {
+				if msg["status"] != "成功" {
+					t.Fatalf("expected status 成功, got %v", msg["status"])
+				}
+			},
+		},
+		{
+			name:   "missingReceiverForMail",
+			task:   models.Task{NotifyStatus: 2, NotifyType: 1, NotifyReceiverId: ""},
+			result: TaskResult{Result: "any"},
+			count:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			captured := stubNotifyPush(t)
+			SendNotification(tt.task, tt.result)
+			if len(*captured) != tt.count {
+				t.Fatalf("expected %d notifications, got %d", tt.count, len(*captured))
+			}
+			if tt.count > 0 && tt.check != nil {
+				tt.check(t, (*captured)[0])
+			}
+		})
+	}
+}
+
+func stubNotifyPush(t *testing.T) *[]notify.Message {
+	t.Helper()
+	var captured []notify.Message
+	original := notifyPushFunc
+	notifyPushFunc = func(msg notify.Message) {
+		msgCopy := notify.Message{}
+		for k, v := range msg {
+			msgCopy[k] = v
+		}
+		captured = append(captured, msgCopy)
+	}
+	t.Cleanup(func() { notifyPushFunc = original })
+	return &captured
+}
