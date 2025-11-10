@@ -14,16 +14,10 @@
           </el-form-item>
         </el-row>
       </el-form>
-      <el-row type="flex" justify="end" :gutter="10">
-        <el-col :span="2">
-          <el-button type="primary" v-if="isAdmin" @click="toEdit(null)">{{ t('common.add') }}</el-button>
-        </el-col>
-        <el-col :span="3">
-          <el-button type="success" v-if="isAdmin" @click="showAgentInstall" icon="Download">{{ t('host.autoRegister') }}</el-button>
-        </el-col>
-        <el-col :span="2">
-          <el-button type="info" @click="refresh" icon="Refresh">{{ t('common.refresh') }}</el-button>
-        </el-col>
+      <el-row type="flex" justify="end" style="gap: 10px; margin-bottom: 15px;">
+        <el-button type="success" v-if="isAdmin" @click="showAgentInstall" icon="Download">{{ t('host.autoRegister') }}</el-button>
+        <el-button type="primary" v-if="isAdmin" @click="toEdit(null)">{{ t('common.add') }}</el-button>
+        <el-button type="info" @click="refresh" icon="Refresh">{{ t('common.refresh') }}</el-button>
       </el-row>
       <el-pagination
         background
