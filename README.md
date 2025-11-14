@@ -56,7 +56,13 @@
 
 **说明**：
 - **Docker 部署**：由于跨平台编译限制，Docker 镜像不支持 SQLite，请使用 MySQL 或 PostgreSQL
-- **二进制部署**：支持所有数据库，包括 SQLite（适合轻量级部署和测试）
+- **二进制部署**：
+  - `make package` 编译当前平台版本：支持 SQLite（启用 CGO）
+  - `make package-all` 跨平台编译：默认不支持 SQLite（禁用 CGO）
+  - `make package-windows` 在 macOS/Linux 上交叉编译 Windows：
+    - 已安装 MinGW (`brew install mingw-w64`)：支持 SQLite
+    - 未安装 MinGW：不支持 SQLite
+  - **GitHub Release 包**：所有平台均在原生系统编译，完整支持 SQLite
 - **生产环境推荐**：使用 MySQL 或 PostgreSQL，性能更好，支持分布式部署
 
 ## 快速开始

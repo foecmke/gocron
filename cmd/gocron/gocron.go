@@ -36,6 +36,12 @@ func main() {
 	cliApp.Version, _ = utils.FormatAppVersion(AppVersion, GitCommit, BuildDate)
 	cliApp.Commands = getCommands()
 	cliApp.Flags = append(cliApp.Flags, []cli.Flag{}...)
+	
+	// Windows下双击运行时自动添加web命令
+	if len(os.Args) == 1 && utils.IsWindows() {
+		os.Args = append(os.Args, "web")
+	}
+	
 	err := cliApp.Run(os.Args)
 	if err != nil {
 		logger.Fatal(err)

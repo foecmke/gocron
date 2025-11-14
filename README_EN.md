@@ -53,7 +53,13 @@ Here are some partial screenshots of the system:
 
 **Notes**:
 - **Docker Deployment**: Due to cross-platform compilation limitations, Docker images do not support SQLite. Please use MySQL or PostgreSQL
-- **Binary Deployment**: Supports all databases including SQLite (suitable for lightweight deployment and testing)
+- **Binary Deployment**:
+  - `make package` compiles for current platform: Supports SQLite (CGO enabled)
+  - `make package-all` cross-platform compilation: Does not support SQLite by default (CGO disabled)
+  - `make package-windows` cross-compile Windows on macOS/Linux:
+    - With MinGW installed (`brew install mingw-w64`): Supports SQLite
+    - Without MinGW: Does not support SQLite
+  - **GitHub Release packages**: All platforms compiled natively with full SQLite support
 - **Production Recommendation**: Use MySQL or PostgreSQL for better performance and distributed deployment support
 
 ## Quick Start

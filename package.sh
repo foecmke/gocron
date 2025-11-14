@@ -124,12 +124,34 @@ build() {
     local FILENAME=''
     for OS in "${INPUT_OS[@]}";do
         for ARCH in "${INPUT_ARCH[@]}";do
+            # 跨平台编译时禁用 CGO（不支持 SQLite）
+            # 本平台编译时启用 CGO（支持 SQLite）
+            local CGO_ENABLED_VALUE='1'
+            local CC_COMPILER=''
+            
+            if [[ "${OS}" != "${GOHOSTOS}" ]] || [[ "${ARCH}" != "${GOHOSTARCH}" ]]; then
+                # 检查是否安装了交叉编译工具链
+                if [[ "${OS}" = "windows" ]] && command -v x86_64-w64-mingw32-gcc &> /dev/null; then
+                    # macOS/Linux 交叉编译 Windows，使用 MinGW
+                    CC_COMPILER='x86_64-w64-mingw32-gcc'
+                    print_message "使用 MinGW 交叉编译 Windows 版本（支持 SQLite）"
+                else
+                    # 没有交叉编译工具链，禁用 CGO
+                    CGO_ENABLED_VALUE='0'
+                fi
+            fi
+            
             if [[ "${OS}" = "windows"  ]];then
                 FILENAME=${BINARY_NAME}.exe
             else
                 FILENAME=${BINARY_NAME}
             fi
-            env CGO_ENABLED=0 GOOS=${OS} GOARCH=${ARCH} go build -ldflags "${LDFLAGS}" -o ${BUILD_DIR}/${BINARY_NAME}-${OS}-${ARCH}/${FILENAME} ${MAIN_FILE}
+            
+            if [[ -n "${CC_COMPILER}" ]]; then
+                env CGO_ENABLED=${CGO_ENABLED_VALUE} CC=${CC_COMPILER} GOOS=${OS} GOARCH=${ARCH} go build -ldflags "${LDFLAGS}" -o ${BUILD_DIR}/${BINARY_NAME}-${OS}-${ARCH}/${FILENAME} ${MAIN_FILE}
+            else
+                env CGO_ENABLED=${CGO_ENABLED_VALUE} GOOS=${OS} GOARCH=${ARCH} go build -ldflags "${LDFLAGS}" -o ${BUILD_DIR}/${BINARY_NAME}-${OS}-${ARCH}/${FILENAME} ${MAIN_FILE}
+            fi
         done
     done
 }

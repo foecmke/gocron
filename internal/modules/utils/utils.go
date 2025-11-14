@@ -166,3 +166,8 @@ func PanicTrace(err interface{}) string {
 
 	return fmt.Sprintf("panic: %v %s", err, stackBuf[:n])
 }
+
+// IsWindows 判断是否为Windows系统
+func IsWindows() bool {
+	return runtime.GOOS == "windows"
+}

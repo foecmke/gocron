@@ -15,8 +15,52 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build-frontend:
     runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'yarn'
+        cache-dependency-path: web/vue/yarn.lock
+
+    - name: Build frontend
+      run: make build-vue
+
+    - name: Upload frontend artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: frontend-dist
+        path: web/public/
+
+  build:
+    needs: build-frontend
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+          - os: windows-latest
+            goos: windows
+            goarch: arm64
+    runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -28,30 +72,50 @@ jobs:
       with:
         go-version: '1.23'
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
+    - name: Download frontend artifacts
+      uses: actions/download-artifact@v4
       with:
-        node-version: '20'
-        cache: 'yarn'
-        cache-dependency-path: web/vue/yarn.lock
-
-    - name: Install frontend dependencies
-      run: |
-        cd web/vue
-        yarn install --frozen-lockfile
-
-    - name: Build frontend
-      run: make build-vue
+        name: frontend-dist
+        path: web/public/
 
     - name: Generate static assets
       run: |
         go install github.com/rakyll/statik@latest
         go generate ./...
 
-    - name: Build packages for all platforms
+    - name: Build packages (Unix)
+      if: runner.os != 'Windows'
       run: |
         chmod +x package.sh
-        bash ./package.sh -p "linux,darwin,windows" -a "amd64,arm64"
+        bash ./package.sh -p "${{ matrix.goos }}" -a "${{ matrix.goarch }}"
+
+    - name: Build packages (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: bash ./package.sh -p "${{ matrix.goos }}" -a "${{ matrix.goarch }}"
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: packages-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: |
+          gocron-package/*
+          gocron-node-package/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: packages-*
+        merge-multiple: true
 
     - name: Generate release notes
       id: release_notes
@@ -80,6 +144,13 @@ jobs:
         fi
         
 
+
+    - name: List downloaded files
+      run: |
+        echo "=== gocron packages ==="
+        ls -lh gocron-package/ || echo "No gocron packages"
+        echo "=== gocron-node packages ==="
+        ls -lh gocron-node-package/ || echo "No gocron-node packages"
 
     - name: Create Release
       run: |
