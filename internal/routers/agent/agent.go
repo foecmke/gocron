@@ -282,22 +282,40 @@ if ($response.code -eq 0) {
 
 Write-Host "Creating Windows service..."
 $servicePath = "$INSTALL_DIR\gocron-node.exe"
+
+# Check if service exists and remove it
 if (Get-Service -Name $SERVICE_NAME -ErrorAction SilentlyContinue) {
-    Stop-Service -Name $SERVICE_NAME -Force
+    Stop-Service -Name $SERVICE_NAME -Force -ErrorAction SilentlyContinue
     sc.exe delete $SERVICE_NAME
     Start-Sleep -Seconds 2
 }
 
-sc.exe create $SERVICE_NAME binPath= $servicePath start= auto
+# Create service with proper configuration
+sc.exe create $SERVICE_NAME binPath= "\"$servicePath\"" start= auto
 sc.exe description $SERVICE_NAME "Gocron Node Agent"
 
+# Try to start the service
 try {
-    Start-Service -Name $SERVICE_NAME
+    Start-Service -Name $SERVICE_NAME -ErrorAction Stop
     Write-Host "Service started successfully"
+    Start-Sleep -Seconds 2
+    $serviceStatus = Get-Service -Name $SERVICE_NAME
+    if ($serviceStatus.Status -eq "Running") {
+        Write-Host "Service is running"
+    } else {
+        Write-Host "Warning: Service status is $($serviceStatus.Status)"
+    }
 } catch {
-    Write-Host "Warning: Failed to start service automatically: $($_.Exception.Message)"
-    Write-Host "You can start it manually with: Start-Service -Name $SERVICE_NAME"
-    Write-Host "Or check service status with: Get-Service -Name $SERVICE_NAME"
+    Write-Host "Warning: Failed to start service: $($_.Exception.Message)"
+    Write-Host ""
+    Write-Host "Trying to start manually for testing..."
+    try {
+        Start-Process -FilePath $servicePath -NoNewWindow -PassThru
+        Write-Host "Started gocron-node manually (PID: $($process.Id))"
+        Write-Host "Note: This is a temporary solution. Please check service configuration."
+    } catch {
+        Write-Host "Failed to start manually: $($_.Exception.Message)"
+    }
 }
 
 Set-Location $env:TEMP
