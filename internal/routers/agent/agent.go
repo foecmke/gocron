@@ -5,8 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -367,7 +365,7 @@ func Register(c *gin.Context) {
 	c.String(http.StatusOK, json.Success("Registration successful", nil))
 }
 
-// Download 下载agent二进制文件
+// Download 重定向到 GitHub Release 下载
 func Download(c *gin.Context) {
 	osName := c.Query("os")
 	arch := c.Query("arch")
@@ -379,47 +377,17 @@ func Download(c *gin.Context) {
 
 	// 根据操作系统选择文件扩展名
 	ext := ".tar.gz"
-	filename := fmt.Sprintf("gocron-node-%s-%s.tar.gz", osName, arch)
 	if osName == "windows" {
 		ext = ".zip"
-		filename = fmt.Sprintf("gocron-node-%s-%s.zip", osName, arch)
 	}
 
-	// 获取可执行文件所在目录
-	exePath, err := os.Executable()
-	var exeDir string
-	if err == nil {
-		exeDir = filepath.Dir(exePath)
-	} else {
-		logger.Warn("Failed to get executable path:", err)
-		exeDir = "."
-	}
+	// 构建 GitHub Release 下载 URL
+	// 格式: https://github.com/gocronx-team/gocron/releases/latest/download/gocron-node-{version}-{os}-{arch}.{ext}
+	filename := fmt.Sprintf("gocron-node-%s-%s%s", osName, arch, ext)
+	githubURL := fmt.Sprintf("https://github.com/gocronx-team/gocron/releases/latest/download/%s", filename)
 	
-	// 查找匹配的包文件（支持多个路径）
-	searchPaths := []string{
-		// 相对于可执行文件的路径
-		fmt.Sprintf("%s/gocron-node-package/gocron-node-*-%s-%s%s", exeDir, osName, arch, ext),
-		// 相对于当前工作目录的路径
-		fmt.Sprintf("./gocron-node-package/gocron-node-*-%s-%s%s", osName, arch, ext),
-		fmt.Sprintf("gocron-node-package/gocron-node-*-%s-%s%s", osName, arch, ext),
-	}
-	
-	var matches []string
-	for _, pattern := range searchPaths {
-		matches, err = filepath.Glob(pattern)
-		if err == nil && len(matches) > 0 {
-			logger.Infof("Found gocron-node package: %s", matches[0])
-			break
-		}
-	}
-	
-	if err != nil || len(matches) == 0 {
-		logger.Warnf("Package not found for %s-%s in paths: %v", osName, arch, searchPaths)
-		c.String(http.StatusNotFound, fmt.Sprintf("Package not found for %s-%s. Please ensure gocron-node-package directory exists in the same directory as gocron executable.", osName, arch))
-		return
-	}
-
-	c.FileAttachment(matches[0], filename)
+	logger.Infof("Redirecting to GitHub Release: %s", githubURL)
+	c.Redirect(http.StatusFound, githubURL)
 }
 
 func generateRandomToken() string {
