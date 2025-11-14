@@ -82,6 +82,8 @@ package-all: build-web
 # 前端构建
 .PHONY: build-vue
 build-vue:
+	@echo "Installing Vue dependencies..."
+	cd web/vue && yarn install
 	@echo "Building Vue frontend..."
 	cd web/vue && yarn run build
 	cp -r web/vue/dist/* web/public/
@@ -222,6 +224,16 @@ delete-tag:
 	@git tag -d $(VERSION)
 	@git push origin :refs/tags/$(VERSION)
 	@echo "✅ Tag $(VERSION) deleted locally and remotely"
+
+.PHONY: delete-failed-releases
+delete-failed-releases:
+	@echo "Deleting tags v1.3.20, v1.3.21, v1.3.22..."
+	@for tag in v1.3.20 v1.3.21 v1.3.22; do \
+		echo "Deleting $$tag..."; \
+		git tag -d $$tag 2>/dev/null || true; \
+		git push origin :refs/tags/$$tag 2>/dev/null || true; \
+	done
+	@echo "✅ Failed release tags deleted"
 
 # 帮助信息
 .PHONY: help
