@@ -133,7 +133,7 @@ export default {
     windowsStep2: '解压并配置',
     windowsStep2Desc: '解压到目标目录，在 Web 界面手动添加节点配置',
     windowsStep3: '启动服务',
-    windowsStep3Desc: '以管理员权限运行 gocron-node.exe 或创建 Windows 服务'
+    windowsStep3Desc: '运行 gocron-node.exe 或创建 Windows 服务'
   },
   user: {
     list: '用户管理',

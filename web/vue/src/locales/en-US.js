@@ -133,7 +133,7 @@ export default {
     windowsStep2: 'Extract and Configure',
     windowsStep2Desc: 'Extract to target directory and manually add node configuration in Web UI',
     windowsStep3: 'Start Service',
-    windowsStep3Desc: 'Run gocron-node.exe with administrator privileges or create a Windows service'
+    windowsStep3Desc: 'Run gocron-node.exe or create a Windows service'
   },
   user: {
     list: 'User Management',
