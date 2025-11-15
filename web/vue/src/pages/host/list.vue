@@ -92,21 +92,19 @@
             </el-tab-pane>
             
             <el-tab-pane label="Windows" name="windows">
-              <div style="padding: 15px; background: #f5f7fa; border-radius: 4px;">
-                <div style="margin-bottom: 10px; color: #606266; font-size: 14px;">
-                  <el-icon style="vertical-align: middle;"><Monitor /></el-icon>
-                  {{ t('host.powershellCommand') }}
-                </div>
-                <el-input
-                  v-model="installCommandWindows"
-                  type="textarea"
-                  :rows="3"
-                  readonly
-                  style="font-family: monospace; font-size: 13px;"
-                />
-                <div style="margin-top: 10px; text-align: right;">
-                  <el-button type="primary" @click="copyCommand('windows')" icon="DocumentCopy">Copy</el-button>
-                </div>
+              <div style="padding: 15px;">
+                <el-alert type="warning" :closable="false" style="margin-bottom: 15px;">
+                  <template #title>
+                    <strong>{{ t('host.windowsManualInstall') }}</strong>
+                  </template>
+                  {{ t('host.windowsManualInstallTip') }}
+                </el-alert>
+                
+                <el-steps direction="vertical" :active="3">
+                  <el-step :title="t('host.windowsStep1')" :description="t('host.windowsStep1Desc')" />
+                  <el-step :title="t('host.windowsStep2')" :description="t('host.windowsStep2Desc')" />
+                  <el-step :title="t('host.windowsStep3')" :description="t('host.windowsStep3Desc')" />
+                </el-steps>
               </div>
             </el-tab-pane>
           </el-tabs>

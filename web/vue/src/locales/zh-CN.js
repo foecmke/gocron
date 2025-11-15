@@ -120,12 +120,20 @@ export default {
     autoRegister: '自动注册',
     agentInstall: 'Agent安装',
     installCommand: '安装命令',
-    installTip: '在目标服务器上执行对应的命令，将自动安装并注册Agent节点（支持Linux/macOS/Windows）',
+    installTip: '在目标服务器上执行对应的命令，将自动安装并注册Agent节点。注意：必须使用非root用户执行安装脚本',
     tokenExpires: 'Token有效期',
     tokenUsage: '使用说明',
     tokenReusable: '此Token可在有效期内重复使用，适用于批量安装',
-    bashCommand: '在终端执行以下命令：',
-    powershellCommand: '在PowerShell（管理员权限）中执行：'
+    bashCommand: '在终端（非root用户）执行以下命令：',
+    powershellCommand: '在PowerShell（管理员权限）中执行：',
+    windowsManualInstall: 'Windows 手动安装',
+    windowsManualInstallTip: '出于安全考虑，Windows 系统建议手动安装 gocron-node',
+    windowsStep1: '下载安装包',
+    windowsStep1Desc: '从 GitHub Releases 下载对应版本的 gocron-node-windows-amd64.zip',
+    windowsStep2: '解压并配置',
+    windowsStep2Desc: '解压到目标目录，在 Web 界面手动添加节点配置',
+    windowsStep3: '启动服务',
+    windowsStep3Desc: '以管理员权限运行 gocron-node.exe 或创建 Windows 服务'
   },
   user: {
     list: '用户管理',

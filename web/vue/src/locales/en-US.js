@@ -120,12 +120,20 @@ export default {
     autoRegister: 'Auto Register',
     agentInstall: 'Agent Installation',
     installCommand: 'Install Command',
-    installTip: 'Run the corresponding command on the target server to automatically install and register the Agent node (Linux/macOS/Windows supported)',
+    installTip: 'Run the corresponding command on the target server to automatically install and register the Agent node. Note: Must be executed by a non-root user',
     tokenExpires: 'Token Expires',
     tokenUsage: 'Usage',
     tokenReusable: 'This token can be reused within the validity period for batch installation',
-    bashCommand: 'Run the following command in terminal:',
-    powershellCommand: 'Run in PowerShell (Administrator):'
+    bashCommand: 'Run the following command in terminal (non-root user):',
+    powershellCommand: 'Run in PowerShell (Administrator):',
+    windowsManualInstall: 'Windows Manual Installation',
+    windowsManualInstallTip: 'For security reasons, manual installation of gocron-node is recommended for Windows systems',
+    windowsStep1: 'Download Package',
+    windowsStep1Desc: 'Download gocron-node-windows-amd64.zip from GitHub Releases',
+    windowsStep2: 'Extract and Configure',
+    windowsStep2Desc: 'Extract to target directory and manually add node configuration in Web UI',
+    windowsStep3: 'Start Service',
+    windowsStep3Desc: 'Run gocron-node.exe with administrator privileges or create a Windows service'
   },
   user: {
     list: 'User Management',

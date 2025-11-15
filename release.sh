@@ -62,10 +62,11 @@ go generate ./...
 echo "✓ Static assets generated"
 echo ""
 
-# 4. 构建所有平台的 gocron-node
-echo "4. Building gocron-node for all platforms..."
-./package.sh -p "linux,darwin,windows" -a "amd64,arm64" -v "$VERSION"
-echo "✓ All gocron-node packages built"
+# 4. 构建所有平台的包
+echo "4. Building packages for all platforms..."
+./package.sh -p "linux,darwin" -a "amd64,arm64" -v "$VERSION"
+./package.sh -p "windows" -a "amd64" -v "$VERSION"
+echo "✓ All packages built"
 echo ""
 
 # 5. 显示构建结果
@@ -135,19 +136,6 @@ cat > /tmp/release_notes.md <<EOF
 - Cross-platform agent auto-registration support
 - Each gocron package includes gocron-node for all platforms
 
-### Packages
-- **gocron**: Main application (includes all platform gocron-node packages)
-- **gocron-node**: Agent for task execution (standalone packages)
-
-### Supported Platforms
-- Linux (amd64, arm64)
-- macOS (amd64, arm64)
-- Windows (amd64, arm64)
-
-### Installation
-Download the appropriate package for your platform and extract it.
-
-For agent auto-registration, see documentation.
 EOF
 
 # 检查 gh CLI 是否安装

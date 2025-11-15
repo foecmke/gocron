@@ -70,6 +70,14 @@ func InstallScript(c *gin.Context) {
 	script := `#!/bin/bash
 set -e
 
+# 安全检查：禁止使用 root 用户运行
+if [ "$(id -u)" = "0" ]; then
+    echo "Error: This script should NOT be run as root for security reasons."
+    echo "Please run as a regular user with sudo privileges."
+    echo "Example: su - youruser -c 'curl -fsSL ... | bash'"
+    exit 1
+fi
+
 # Token is embedded in the script URL, extract it here
 TOKEN="` + token + `"
 if [ -z "$TOKEN" ]; then
@@ -150,7 +158,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+User=$(whoami)
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$INSTALL_DIR/gocron-node
 Restart=on-failure

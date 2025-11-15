@@ -77,12 +77,13 @@ package-darwin: build-web
 .PHONY: package-windows
 package-windows: build-web
 	@echo "Building packages for Windows..."
-	bash ./package.sh -p windows -a "amd64,arm64"
+	bash ./package.sh -p windows -a "amd64"
 
 .PHONY: package-all
 package-all: build-web
 	@echo "Building packages for all platforms..."
-	bash ./package.sh -p "linux,darwin,windows" -a "amd64,arm64"
+	bash ./package.sh -p "linux,darwin" -a "amd64,arm64"
+	bash ./package.sh -p "windows" -a "amd64"
 
 # 前端构建
 .PHONY: build-vue
