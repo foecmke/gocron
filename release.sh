@@ -170,13 +170,9 @@ cat > /tmp/release_notes.md <<EOF
 ## 🚀 Release $VERSION
 
 ### Features
-- Cross-platform agent auto-registration support
-- Each gocron package includes gocron-node for all platforms
-- Security: force gocron-node to run as a non-root user
-- gocron config file path changed to .gocron/conf/app.ini
-
-### Fixes
-- cgo: fix gocron/gocron-node build on windows 
+- Fixed zero-value initialization for upcoming tasks
+- Corrected root node directory logic
+- Updated JWT dependency to the latest version
 
 EOF
 

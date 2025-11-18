@@ -68,12 +68,13 @@ func IsInstalled() bool {
 
 // CreateInstallLock 创建安装锁文件
 func CreateInstallLock() error {
-	_, err := os.Create(filepath.Join(ConfDir, "install.lock"))
+	lockFile := filepath.Join(ConfDir, "install.lock")
+	err := os.WriteFile(lockFile, []byte(""), 0600)
 	if err != nil {
 		logger.Error("创建安装锁文件conf/install.lock失败", err)
 		fmt.Printf("Error creating install.lock: %v\n", err)
 	} else {
-		fmt.Printf("Successfully created install.lock at %s\n", filepath.Join(ConfDir, "install.lock"))
+		fmt.Printf("Successfully created install.lock at %s\n", lockFile)
 	}
 
 	return err
@@ -83,7 +84,7 @@ func CreateInstallLock() error {
 func UpdateVersionFile() {
 	err := os.WriteFile(VersionFile,
 		[]byte(strconv.Itoa(VersionId)),
-		0644,
+		0600,
 	)
 
 	if err != nil {

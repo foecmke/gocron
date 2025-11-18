@@ -2,6 +2,7 @@ package setting
 
 import (
 	"errors"
+	"os"
 
 	"github.com/gocronx-team/gocron/internal/modules/logger"
 	"github.com/gocronx-team/gocron/internal/modules/utils"
@@ -115,6 +116,11 @@ func Write(config []string, filename string) error {
 		i += 2
 	}
 	err = file.SaveTo(filename)
+	if err != nil {
+		return err
+	}
+	// 设置配置文件权限为0600，仅所有者可读写
+	err = os.Chmod(filename, 0600)
 
 	return err
 }

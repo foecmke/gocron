@@ -130,3 +130,26 @@ func TestWritePersistsKeyValuePairs(t *testing.T) {
 		t.Fatalf("api.sign.enable mismatch, got %s", section.Key("api.sign.enable").String())
 	}
 }
+
+func TestWriteSetsSecureFilePermissions(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "app.ini")
+	data := []string{
+		"db.password", "secret123",
+		"auth_secret", "token456",
+	}
+
+	if err := Write(data, configPath); err != nil {
+		t.Fatalf("write failed: %v", err)
+	}
+
+	info, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatalf("stat failed: %v", err)
+	}
+
+	perm := info.Mode().Perm()
+	if perm != 0600 {
+		t.Fatalf("expected file permission 0600, got %#o", perm)
+	}
+}

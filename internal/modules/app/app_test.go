@@ -52,6 +52,24 @@ func TestCreateInstallLockAndIsInstalled(t *testing.T) {
 	}
 }
 
+func TestCreateInstallLockSetsSecurePermissions(t *testing.T) {
+	initTempEnv(t, "1.0.0")
+	lockPath := filepath.Join(ConfDir, "install.lock")
+	if err := CreateInstallLock(); err != nil {
+		t.Fatalf("CreateInstallLock failed: %v", err)
+	}
+
+	info, err := os.Stat(lockPath)
+	if err != nil {
+		t.Fatalf("stat failed: %v", err)
+	}
+
+	perm := info.Mode().Perm()
+	if perm != 0600 {
+		t.Fatalf("expected file permission 0600, got %#o", perm)
+	}
+}
+
 func TestUpdateVersionFileAndGetCurrentVersionId(t *testing.T) {
 	initTempEnv(t, "1.0.0")
 	VersionId = 789
@@ -59,6 +77,22 @@ func TestUpdateVersionFileAndGetCurrentVersionId(t *testing.T) {
 	id := GetCurrentVersionId()
 	if id != 789 {
 		t.Fatalf("expected version id 789, got %d", id)
+	}
+}
+
+func TestUpdateVersionFileSetsSecurePermissions(t *testing.T) {
+	initTempEnv(t, "1.0.0")
+	VersionId = 123
+	UpdateVersionFile()
+
+	info, err := os.Stat(VersionFile)
+	if err != nil {
+		t.Fatalf("stat failed: %v", err)
+	}
+
+	perm := info.Mode().Perm()
+	if perm != 0600 {
+		t.Fatalf("expected file permission 0600, got %#o", perm)
 	}
 }
 
