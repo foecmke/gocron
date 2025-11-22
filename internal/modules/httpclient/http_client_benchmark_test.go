@@ -89,12 +89,12 @@ func TestDifferentTimeouts(t *testing.T) {
 	defer server.Close()
 
 	timeouts := []int{5, 10, 30, 300}
-	
+
 	for _, timeout := range timeouts {
 		start := time.Now()
 		resp := Get(server.URL, timeout)
 		duration := time.Since(start)
-		
+
 		if resp.StatusCode != 200 {
 			t.Errorf("超时 %d 秒的请求失败: %v", timeout, resp.Body)
 		}
@@ -192,17 +192,17 @@ func TestConnectionReuse(t *testing.T) {
 	defer server.Close()
 
 	t.Log("🔍 连接复用测试 (执行 10 次请求)")
-	
+
 	for i := 0; i < 10; i++ {
 		start := time.Now()
 		resp := Get(server.URL, 5)
 		duration := time.Since(start)
-		
+
 		if resp.StatusCode != 200 {
 			t.Errorf("请求 %d 失败", i+1)
 		}
 		t.Logf("   请求 %d: %v", i+1, duration)
 	}
-	
+
 	t.Log("💡 提示: 如果后续请求明显快于首次请求，说明连接被复用")
 }

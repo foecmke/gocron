@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/gin-gonic/gin"
 	"github.com/gocronx-team/gocron/internal/models"
 	"github.com/gocronx-team/gocron/internal/modules/app"
@@ -16,6 +15,7 @@ import (
 	"github.com/gocronx-team/gocron/internal/modules/logger"
 	"github.com/gocronx-team/gocron/internal/modules/utils"
 	"github.com/gocronx-team/gocron/internal/routers/base"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/pquerna/otp/totp"
 )
 
@@ -313,7 +313,7 @@ func ValidateLogin(c *gin.Context) {
 	twoFactorCode := strings.TrimSpace(c.PostForm("two_factor_code"))
 	json := utils.JsonResponse{}
 	var result string
-	
+
 	if username == "" || password == "" {
 		result = json.CommonFailure(i18n.T(c, "username_password_empty"))
 		c.String(http.StatusOK, result)
@@ -322,7 +322,7 @@ func ValidateLogin(c *gin.Context) {
 
 	// 获取登录限制器
 	limiter := utils.GetLoginLimiter()
-	
+
 	// 检查账户是否被锁定
 	if locked, lockTime := limiter.IsLocked(username); locked {
 		remainingTime := int(time.Until(lockTime).Minutes())
@@ -339,7 +339,7 @@ func ValidateLogin(c *gin.Context) {
 		// 记录登录失败
 		limiter.RecordFailure(username)
 		remaining := limiter.GetRemainingAttempts(username)
-		
+
 		if remaining > 0 {
 			result = json.CommonFailure(fmt.Sprintf(i18n.T(c, "login_failed_with_attempts"), remaining))
 		} else {

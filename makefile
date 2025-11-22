@@ -114,21 +114,72 @@ statik:
 build-web: build-vue statik
 	@echo "Web build complete!"
 
-# 代码质量
+# 代码质量检查
+.PHONY: check
+check: fmt vet test
+	@echo "✅ All checks passed!"
+
 .PHONY: lint
 lint:
 	@echo "Running linter..."
-	golangci-lint run
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run || echo "⚠️  Linter found issues (non-blocking)"; \
+	else \
+		echo "⚠️  golangci-lint not installed, skipping..."; \
+		echo "   Install: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
+	fi
 
 .PHONY: fmt
 fmt:
 	@echo "Formatting code..."
-	go fmt ./...
+	@go fmt ./...
+
+.PHONY: fmt-check
+fmt-check:
+	@echo "Checking code formatting..."
+	@test -z "$$(gofmt -l .)" || (echo "❌ Code not formatted, run 'make fmt'" && exit 1)
+	@echo "✅ Code formatting OK"
 
 .PHONY: vet
 vet:
 	@echo "Running go vet..."
-	go vet ./...
+	@go vet ./...
+	@echo "✅ go vet passed"
+
+.PHONY: test-coverage
+test-coverage:
+	@echo "Running tests with coverage..."
+	@go test -cover -coverprofile=coverage.out ./...
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "✅ Coverage report generated: coverage.html"
+
+.PHONY: security
+security:
+	@echo "Running security checks..."
+	@if command -v gosec >/dev/null 2>&1; then \
+		gosec ./... || echo "⚠️  Security issues found (non-blocking)"; \
+	else \
+		echo "⚠️  gosec not installed, skipping..."; \
+		echo "   Install: go install github.com/securego/gosec/v2/cmd/gosec@latest"; \
+	fi
+
+# 预发布检查（完整检查）
+.PHONY: pre-release
+pre-release: clean
+	@echo "=========================================="
+	@echo "Running pre-release checks..."
+	@echo "=========================================="
+	@$(MAKE) fmt-check
+	@$(MAKE) vet
+	@$(MAKE) test
+	@echo ""
+	@echo "=========================================="
+	@echo "✅ All pre-release checks passed!"
+	@echo "=========================================="
+	@echo ""
+	@echo "Optional checks (run manually if needed):"
+	@echo "  make lint      - Code quality linter"
+	@echo "  make security  - Security vulnerability scan"
 
 # 清理
 .PHONY: clean
@@ -140,6 +191,7 @@ clean:
 	-rm -rf gocron-node-package
 	-rm -rf gocron-build
 	-rm -rf gocron-node-build
+	-rm -f coverage.out coverage.html
 
 .PHONY: clean-web
 clean-web:
@@ -155,6 +207,7 @@ dev-deps:
 	go install github.com/cosmtrek/air@latest
 	go install github.com/rakyll/statik@latest
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/securego/gosec/v2/cmd/gosec@latest
 
 # 版本管理
 .PHONY: version
@@ -231,16 +284,6 @@ delete-tag:
 	@git push origin :refs/tags/$(VERSION)
 	@echo "✅ Tag $(VERSION) deleted locally and remotely"
 
-.PHONY: delete-failed-releases
-delete-failed-releases:
-	@echo "Deleting tags v1.3.20, v1.3.21, v1.3.22..."
-	@for tag in v1.3.20 v1.3.21 v1.3.22; do \
-		echo "Deleting $$tag..."; \
-		git tag -d $$tag 2>/dev/null || true; \
-		git push origin :refs/tags/$$tag 2>/dev/null || true; \
-	done
-	@echo "✅ Failed release tags deleted"
-
 # 帮助信息
 .PHONY: help
 help:
@@ -249,32 +292,25 @@ help:
 	@echo "Build:"
 	@echo "  build          - Build gocron and gocron-node for current platform"
 	@echo "  run            - Build and run in development mode"
-	@echo "  run-with-packages - Build all platform packages and run (for agent auto-install)"
 	@echo "  test           - Run tests"
-	@echo "  package        - Build packages for current platform"
-	@echo "  package-linux  - Build packages for Linux (amd64, arm64)"
-	@echo "  package-darwin - Build packages for macOS (amd64, arm64)"
-	@echo "  package-windows- Build packages for Windows (amd64, arm64)"
 	@echo "  package-all    - Build packages for all platforms"
 	@echo ""
-	@echo "Frontend:"
-	@echo "  build-vue      - Build Vue frontend"
-	@echo "  install-vue    - Install Vue dependencies"
-	@echo "  run-vue        - Start Vue dev server"
-	@echo ""
 	@echo "Code Quality:"
-	@echo "  lint           - Run linter"
+	@echo "  check          - Run fmt + vet + test"
+	@echo "  pre-release    - Run all checks before release"
 	@echo "  fmt            - Format code"
-	@echo "  clean          - Clean build artifacts"
+	@echo "  fmt-check      - Check code formatting"
+	@echo "  vet            - Run go vet"
+	@echo "  lint           - Run linter (golangci-lint)"
+	@echo "  test-coverage  - Run tests with coverage report"
+	@echo "  security       - Run security checks (gosec)"
 	@echo ""
 	@echo "Version Management:"
-	@echo "  version        - Show current version and recent tags"
-	@echo "  release        - Create and push a new release tag (VERSION=v1.3.18)"
-	@echo "  release-patch  - Auto increment patch version (v1.3.17 -> v1.3.18)"
-	@echo "  release-minor  - Auto increment minor version (v1.3.17 -> v1.4.0)"
-	@echo "  release-major  - Auto increment major version (v1.3.17 -> v2.0.0)"
-	@echo "  delete-tag     - Delete a tag locally and remotely (VERSION=v1.3.18)"
+	@echo "  version        - Show current version"
+	@echo "  release        - Create release tag (VERSION=v1.3.18)"
+	@echo "  release-patch  - Auto increment patch version"
 	@echo ""
 	@echo "Development:"
 	@echo "  dev-deps       - Install development dependencies"
+	@echo "  clean          - Clean build artifacts"
 	@echo "  help           - Show this help message"

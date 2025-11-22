@@ -108,7 +108,6 @@ func Register(r *gin.Engine) {
 	{
 		agentGroup.POST("/generate-token", agent.GenerateToken)
 		agentGroup.GET("/install.sh", agent.InstallScript)
-		agentGroup.GET("/install.ps1", agent.InstallScriptWindows)
 		agentGroup.POST("/register", agent.Register)
 		agentGroup.GET("/download", agent.Download)
 	}
@@ -268,7 +267,7 @@ func userAuth(c *gin.Context) {
 
 	uri := strings.TrimRight(path, "/")
 	// 登录接口和安装状态接口不需要认证
-	excludePaths := []string{"", "/api/user/login", "/api/install/status", "/api/agent/install.sh", "/api/agent/install.ps1", "/api/agent/register", "/api/agent/download"}
+	excludePaths := []string{"", "/api/user/login", "/api/install/status", "/api/agent/install.sh", "/api/agent/register", "/api/agent/download"}
 	for _, p := range excludePaths {
 		if uri == p {
 			c.Next()
@@ -342,7 +341,6 @@ func urlAuth(c *gin.Context) {
 		"/api/user/2fa/enable",
 		"/api/user/2fa/disable",
 		"/api/agent/install.sh",
-		"/api/agent/install.ps1",
 		"/api/agent/register",
 		"/api/agent/download",
 	}

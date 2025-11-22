@@ -7,7 +7,7 @@ import (
 // 测试批量查询功能
 func TestGetHostsByTaskIds(t *testing.T) {
 	taskHostModel := &TaskHost{}
-	
+
 	// 测试空列表
 	result, err := taskHostModel.GetHostsByTaskIds([]int{})
 	if err != nil {
@@ -16,14 +16,14 @@ func TestGetHostsByTaskIds(t *testing.T) {
 	if len(result) != 0 {
 		t.Errorf("空列表应返回空map，实际: %d", len(result))
 	}
-	
+
 	t.Log("✅ 批量查询方法测试通过")
 }
 
 // 测试优化后的 setHostsForTasks
 func TestSetHostsForTasks_Optimized(t *testing.T) {
 	taskModel := &Task{}
-	
+
 	// 测试空列表
 	tasks := []Task{}
 	result, err := taskModel.setHostsForTasks(tasks)
@@ -33,7 +33,7 @@ func TestSetHostsForTasks_Optimized(t *testing.T) {
 	if len(result) != 0 {
 		t.Errorf("空列表应返回空数组")
 	}
-	
+
 	t.Log("✅ setHostsForTasks 优化测试通过")
 }
 

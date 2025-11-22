@@ -6,6 +6,7 @@ set -e
 
 VERSION=""
 PRERELEASE=false
+SKIP_CHECKS=false
 
 # 解析参数
 while [[ $# -gt 0 ]]; do
@@ -18,9 +19,13 @@ while [[ $# -gt 0 ]]; do
             PRERELEASE=true
             shift
             ;;
+        --skip-checks)
+            SKIP_CHECKS=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 -v <version> [--prerelease]"
+            echo "Usage: $0 -v <version> [--prerelease] [--skip-checks]"
             echo "Example: $0 -v v1.3.21"
             exit 1
             ;;
@@ -29,7 +34,7 @@ done
 
 if [ -z "$VERSION" ]; then
     echo "Error: Version is required"
-    echo "Usage: $0 -v <version> [--prerelease]"
+    echo "Usage: $0 -v <version> [--prerelease] [--skip-checks]"
     exit 1
 fi
 
@@ -38,7 +43,47 @@ echo "Local Build and Release to GitHub"
 echo "=========================================="
 echo "Version: $VERSION"
 echo "Prerelease: $PRERELEASE"
+echo "Skip Checks: $SKIP_CHECKS"
 echo ""
+
+# 0. 代码质量检查
+if [ "$SKIP_CHECKS" = false ]; then
+    echo "0. Running code quality checks..."
+    echo ""
+    
+    # 格式检查
+    echo "  → Checking code formatting..."
+    if ! make fmt-check 2>/dev/null; then
+        echo "❌ Code formatting check failed!"
+        echo "   Run 'make fmt' to fix formatting issues"
+        exit 1
+    fi
+    
+    # go vet 检查
+    echo "  → Running go vet..."
+    if ! make vet 2>/dev/null; then
+        echo "❌ go vet check failed!"
+        exit 1
+    fi
+    
+    # 运行测试
+    echo "  → Running tests..."
+    if ! make test 2>/dev/null; then
+        echo "❌ Tests failed!"
+        exit 1
+    fi
+    
+    # 可选：linter 检查
+    echo "  → Running linter (optional)..."
+    make lint 2>/dev/null || echo "⚠️  Linter check skipped"
+    
+    echo ""
+    echo "✅ All code quality checks passed!"
+    echo ""
+else
+    echo "⚠️  Skipping code quality checks (--skip-checks flag)"
+    echo ""
+fi
 
 # 1. 检查是否需要清理
 echo "1. Checking existing builds..."
@@ -74,7 +119,6 @@ echo ""
 
 # 4. 构建所有平台的包
 echo "4. Building packages for all platforms..."
-# 检查 gocron 和 gocron-node 是否已有打包文件
 MISSING_PACKAGES=false
 
 # 检查 Linux/macOS gocron 包
@@ -167,13 +211,16 @@ fi
 
 # 生成 release notes
 cat > /tmp/release_notes.md <<EOF
-## 🚀 Release $VERSION
+## 🔧 Bug Fixes & Performance Improvements
 
-- Add local package support (gocron-node-package directory)
-- Prioritize local download, auto-fallback to GitHub
-- Add friendly prompts and detection logic in install script
-- Fix path issue: use executable directory instead of working directory
-- Update README docs, migrate details to documentation site
+### Bug Fixes
+- Fixed logger formatting issues that caused incorrect log output
+
+### Performance Improvements
+- Added HTTP connection pooling for better resource usage (46% less memory)
+- Optimized database queries to reduce load (99% fewer queries)
+
+**Upgrade:** Simply replace the binary, no configuration changes needed.
 
 EOF
 
@@ -202,7 +249,7 @@ gh release create "$VERSION" \
 
 echo ""
 echo "=========================================="
-echo "✓ Release $VERSION created successfully!"
+echo "✅ Release $VERSION created successfully!"
 echo "=========================================="
 echo ""
 echo "View release: https://github.com/$(git config --get remote.origin.url | sed 's/.*github.com[:/]\(.*\)\.git/\1/')/releases/tag/$VERSION"

@@ -250,139 +250,6 @@ echo "========================================"
 	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(script))
 }
 
-// InstallScriptWindows Windows不支持自动安装
-func InstallScriptWindows(c *gin.Context) {
-	c.String(http.StatusNotFound, "Windows auto-installation is not supported for security reasons. Please install manually.")
-	return
-	/*
-	token := c.Query("token")
-	if token == "" {
-		c.String(http.StatusBadRequest, "Token is required")
-		return
-	}
-
-	// 验证token有效性
-	agentToken := &models.AgentToken{}
-	if err := agentToken.FindByToken(token); err != nil {
-		c.String(http.StatusUnauthorized, "Invalid token")
-		return
-	}
-
-	if time.Now().After(agentToken.ExpiresAt) {
-		c.String(http.StatusUnauthorized, "Token expired")
-		return
-	}
-
-	script := `$ErrorActionPreference = "Stop"
-
-$TOKEN = "` + token + `"
-$GOCRON_SERVER = "` + getServerURL(c) + `"
-$INSTALL_DIR = "C:\Program Files\gocron-node"
-$SERVICE_NAME = "gocron-node"
-$GITHUB_REPO = "gocronx-team/gocron"
-
-Write-Host "Installing gocron-node for Windows..."
-
-$ARCH = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }
-$DOWNLOAD_URL = "https://github.com/${GITHUB_REPO}/releases/latest/download/gocron-node-windows-${ARCH}.zip"
-
-$TMP_DIR = [System.IO.Path]::GetTempPath() + [System.Guid]::NewGuid().ToString()
-New-Item -ItemType Directory -Path $TMP_DIR | Out-Null
-Set-Location $TMP_DIR
-
-Write-Host "Downloading from $DOWNLOAD_URL..."
-Invoke-WebRequest -Uri $DOWNLOAD_URL -OutFile "gocron-node.zip"
-Expand-Archive -Path "gocron-node.zip" -DestinationPath .
-
-if (-not (Test-Path $INSTALL_DIR)) {
-    New-Item -ItemType Directory -Path $INSTALL_DIR | Out-Null
-}
-Copy-Item -Path "gocron-node*\*" -Destination $INSTALL_DIR -Recurse -Force
-
-Write-Host "Registering agent..."
-$HOSTNAME = $env:COMPUTERNAME
-Write-Host "Using hostname: $HOSTNAME"
-
-$REGISTER_URL = "${GOCRON_SERVER}/api/agent/register"
-$body = @{
-    token = $TOKEN
-    hostname = $HOSTNAME
-} | ConvertTo-Json
-
-$response = Invoke-RestMethod -Uri $REGISTER_URL -Method Post -Body $body -ContentType "application/json"
-if ($response.code -eq 0) {
-    Write-Host "Agent registered successfully"
-} else {
-    Write-Host "Failed to register agent: $($response.message)"
-    exit 1
-}
-
-Write-Host "Creating Windows service..."
-$servicePath = "$INSTALL_DIR\gocron-node.exe"
-
-# Check if service exists and remove it
-if (Get-Service -Name $SERVICE_NAME -ErrorAction SilentlyContinue) {
-    Stop-Service -Name $SERVICE_NAME -Force -ErrorAction SilentlyContinue
-    sc.exe delete $SERVICE_NAME
-    Start-Sleep -Seconds 2
-}
-
-# Create service with proper configuration
-sc.exe create $SERVICE_NAME binPath= "\"$servicePath\"" start= auto
-sc.exe description $SERVICE_NAME "Gocron Node Agent"
-
-# Try to start the service
-try {
-    Start-Service -Name $SERVICE_NAME -ErrorAction Stop
-    Write-Host "Service started successfully"
-    Start-Sleep -Seconds 2
-    $serviceStatus = Get-Service -Name $SERVICE_NAME
-    if ($serviceStatus.Status -eq "Running") {
-        Write-Host "Service is running"
-    } else {
-        Write-Host "Warning: Service status is $($serviceStatus.Status)"
-    }
-} catch {
-    Write-Host "Warning: Failed to start service: $($_.Exception.Message)"
-    Write-Host ""
-    Write-Host "Trying to start manually for testing..."
-    try {
-        Start-Process -FilePath $servicePath -NoNewWindow -PassThru
-        Write-Host "Started gocron-node manually (PID: $($process.Id))"
-        Write-Host "Note: This is a temporary solution. Please check service configuration."
-    } catch {
-        Write-Host "Failed to start manually: $($_.Exception.Message)"
-    }
-}
-
-Set-Location $env:TEMP
-Remove-Item -Path $TMP_DIR -Recurse -Force
-
-Write-Host ""
-Write-Host "========================================"
-Write-Host "Installation completed successfully!"
-Write-Host "========================================"
-Write-Host ""
-Write-Host "Agent Management Commands:"
-Write-Host "  Start:   Start-Service -Name $SERVICE_NAME"
-Write-Host "  Stop:    Stop-Service -Name $SERVICE_NAME"
-Write-Host "  Restart: Restart-Service -Name $SERVICE_NAME"
-Write-Host "  Status:  Get-Service -Name $SERVICE_NAME"
-Write-Host "  Logs:    Get-EventLog -LogName Application -Source $SERVICE_NAME -Newest 10"
-Write-Host ""
-Write-Host "Uninstall:"
-Write-Host "  Stop-Service -Name $SERVICE_NAME -Force"
-Write-Host "  sc.exe delete $SERVICE_NAME"
-Write-Host "  Remove-Item -Path '$INSTALL_DIR' -Recurse -Force"
-Write-Host ""
-Write-Host "Installation directory: $INSTALL_DIR"
-Write-Host "========================================"
-`
-
-	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(script))
-	*/
-}
-
 // Register agent注册
 func Register(c *gin.Context) {
 	var req struct {
@@ -458,7 +325,7 @@ func Download(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("gocron-node-%s-%s%s", osName, arch, ext)
-	
+
 	// 获取可执行文件所在目录
 	execPath, err := os.Executable()
 	if err != nil {
@@ -469,12 +336,12 @@ func Download(c *gin.Context) {
 		c.Redirect(http.StatusFound, githubURL)
 		return
 	}
-	
+
 	execDir := filepath.Dir(execPath)
-	
+
 	// 优先检查本地 gocron-node-package 目录（相对于可执行文件所在目录）
 	localPath := filepath.Join(execDir, "gocron-node-package", filename)
-	
+
 	// 检查文件是否存在
 	if _, err := os.Stat(localPath); err == nil {
 		logger.Infof("✓ 本地安装包存在，提供文件: %s", localPath)

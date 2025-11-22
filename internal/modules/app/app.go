@@ -42,7 +42,7 @@ func InitEnv(versionString string) {
 		logger.Fatal(err)
 	}
 	execDir := filepath.Dir(execPath)
-	
+
 	// 如果可执行文件在 tmp 目录（开发环境），使用项目根目录
 	if filepath.Base(execDir) == "tmp" {
 		AppDir = filepath.Join(filepath.Dir(execDir), ".gocron")

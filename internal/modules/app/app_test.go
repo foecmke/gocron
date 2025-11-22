@@ -11,25 +11,44 @@ func initTempEnv(t *testing.T, version string) string {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
+
+	// 保存原始值
+	oldAppDir := AppDir
+	oldConfDir := ConfDir
+	oldLogDir := LogDir
+	oldVersionFile := VersionFile
+	oldVersionId := VersionId
+	oldInstalled := Installed
+
+	// 清理函数
+	t.Cleanup(func() {
+		AppDir = oldAppDir
+		ConfDir = oldConfDir
+		LogDir = oldLogDir
+		VersionFile = oldVersionFile
+		VersionId = oldVersionId
+		Installed = oldInstalled
+	})
+
 	InitEnv(version)
 	return home
 }
 
 func TestInitEnvCreatesDirectoriesAndSetsVersion(t *testing.T) {
-	home := initTempEnv(t, "1.2.3")
-	expectedAppDir := filepath.Join(home, ".gocron")
-	if AppDir != expectedAppDir {
-		t.Fatalf("expected AppDir %s, got %s", expectedAppDir, AppDir)
-	}
+	initTempEnv(t, "1.2.3")
+
+	// 验证目录被创建（不检查具体路径，因为它依赖于可执行文件位置）
 	for _, dir := range []string{AppDir, ConfDir, LogDir} {
 		if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
 			t.Fatalf("expected directory %s to exist", dir)
 		}
 	}
+
 	expectedVersion := ToNumberVersion("1.2.3")
 	if VersionId != expectedVersion {
 		t.Fatalf("expected VersionId %d, got %d", expectedVersion, VersionId)
 	}
+
 	if Installed {
 		t.Fatal("app should not be marked installed without lock file")
 	}
@@ -97,7 +116,14 @@ func TestUpdateVersionFileSetsSecurePermissions(t *testing.T) {
 }
 
 func TestGetCurrentVersionIdWhenMissing(t *testing.T) {
-	initTempEnv(t, "2.0.0")
+	// 创建临时目录但不调用 InitEnv，手动设置 VersionFile
+	tempDir := t.TempDir()
+	oldVersionFile := VersionFile
+	VersionFile = filepath.Join(tempDir, ".version")
+	t.Cleanup(func() {
+		VersionFile = oldVersionFile
+	})
+
 	if id := GetCurrentVersionId(); id != 0 {
 		t.Fatalf("expected 0 when version file missing, got %d", id)
 	}
