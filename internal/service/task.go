@@ -369,6 +369,7 @@ func updateTaskLog(taskLogId int64, taskResult TaskResult) (int64, error) {
 		"retry_times": taskResult.RetryTimes,
 		"status":      status,
 		"result":      result,
+		"end_time":    time.Now(),
 	})
 
 }
