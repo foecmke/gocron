@@ -2,6 +2,7 @@ package logger
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"log/slog"
 	"sync"
@@ -17,7 +18,7 @@ func BenchmarkConcurrentSync(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			handler.Handle(nil, slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
+			_ = handler.Handle(context.TODO(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
 		}
 	})
 }
@@ -59,7 +60,7 @@ func TestRealWorldScenario(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					for j := 0; j < tt.logsPerTask; j++ {
-						handler.Handle(nil, slog.NewRecord(time.Now(), slog.LevelInfo, "task executing", 0))
+						_ = handler.Handle(context.TODO(), slog.NewRecord(time.Now(), slog.LevelInfo, "task executing", 0))
 					}
 				}()
 			}
@@ -113,7 +114,7 @@ func TestThroughput(t *testing.T) {
 				t.Logf("同步日志 1秒内写入: %d 条", count)
 				return
 			default:
-				handler.Handle(nil, slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
+				_ = handler.Handle(context.TODO(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
 				count++
 			}
 		}
@@ -152,7 +153,7 @@ func BenchmarkRealFileSync(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		handler.Handle(nil, slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0))
+		_ = handler.Handle(context.TODO(), slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0))
 	}
 }
 

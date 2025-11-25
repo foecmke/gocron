@@ -48,7 +48,7 @@ func (h *asyncHandler) worker() {
 			return
 		}
 		for _, rec := range batch {
-			h.handler.Handle(ctx, rec.record)
+			_ = h.handler.Handle(ctx, rec.record)
 		}
 		batch = batch[:0]
 	}
@@ -79,7 +79,7 @@ func (h *asyncHandler) log(level slog.Level, msg string, args ...any) {
 	case h.logChan <- logRec:
 	default:
 		// 队列满时直接同步写入（降级策略）
-		h.handler.Handle(context.Background(), rec)
+		_ = h.handler.Handle(context.Background(), rec)
 	}
 }
 

@@ -90,7 +90,7 @@ func BenchmarkSyncLogger(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		handler.Handle(context.Background(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
+		_ = handler.Handle(context.Background(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
 	}
 }
 

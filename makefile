@@ -132,12 +132,15 @@ lint:
 .PHONY: fmt
 fmt:
 	@echo "Formatting code..."
-	@go fmt ./...
+	@find . -name '*.go' -not -path './internal/statik/statik.go' -exec gofmt -w {} \;
 
 .PHONY: fmt-check
 fmt-check:
 	@echo "Checking code formatting..."
-	@test -z "$$(gofmt -l .)" || (echo "❌ Code not formatted, run 'make fmt'" && exit 1)
+	@unformatted=$$(gofmt -l . | grep -v 'internal/statik/statik.go'); \
+	if [ -n "$$unformatted" ]; then \
+		echo "❌ Code not formatted:" && echo "$$unformatted" && echo "Run 'make fmt' to fix" && exit 1; \
+	fi
 	@echo "✅ Code formatting OK"
 
 .PHONY: vet

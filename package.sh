@@ -135,9 +135,21 @@ build() {
                     # macOS/Linux 交叉编译 Windows amd64，使用 MinGW
                     CC_COMPILER='x86_64-w64-mingw32-gcc'
                     print_message "使用 MinGW 交叉编译 Windows amd64 版本（支持 SQLite）"
+                elif [[ "${OS}" = "linux" ]] && [[ "${ARCH}" = "amd64" ]] && command -v x86_64-linux-musl-gcc &> /dev/null; then
+                    # macOS 交叉编译 Linux amd64，使用 musl-cross
+                    CC_COMPILER='x86_64-linux-musl-gcc'
+                    print_message "使用 musl-cross 交叉编译 Linux amd64 版本（支持 SQLite）"
+                elif [[ "${OS}" = "linux" ]] && [[ "${ARCH}" = "arm64" ]] && command -v aarch64-linux-musl-gcc &> /dev/null; then
+                    # macOS 交叉编译 Linux arm64，使用 musl-cross
+                    CC_COMPILER='aarch64-linux-musl-gcc'
+                    print_message "使用 musl-cross 交叉编译 Linux arm64 版本（支持 SQLite）"
+                elif [[ "${OS}" = "darwin" ]]; then
+                    # macOS 同平台不同架构编译，保持 CGO 启用
+                    print_message "macOS 交叉架构编译 ${OS}-${ARCH} 版本（支持 SQLite）"
                 else
                     # 没有交叉编译工具链或不支持的架构，禁用 CGO
                     CGO_ENABLED_VALUE='0'
+                    print_message "警告: 跨平台编译 ${OS}-${ARCH} 未找到交叉编译工具链，禁用 CGO（不支持 SQLite）"
                 fi
             fi
             

@@ -212,8 +212,8 @@ fi
 # 生成 release notes
 cat > /tmp/release_notes.md <<EOF
 
-fix: correct task execution time calculation
-chore: fix errcheck linter warnings
+Performance boost: Async batch logging delivers 7-13% performance improvement with backward compatibility.
+Linux CGO support: Full SQLite integration for robust Linux deployments with cross-compilation toolchain.
 
 EOF
 

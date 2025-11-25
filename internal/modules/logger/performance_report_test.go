@@ -2,6 +2,7 @@ package logger
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -26,7 +27,7 @@ func TestPerformanceReport(t *testing.T) {
 		handler1 := slog.NewTextHandler(&buf1, nil)
 		start1 := time.Now()
 		for i := 0; i < count; i++ {
-			handler1.Handle(nil, slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
+			_ = handler1.Handle(context.TODO(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
 		}
 		sync1 := time.Since(start1)
 
@@ -61,7 +62,7 @@ func TestPerformanceReport(t *testing.T) {
 			go func() {
 				defer wg1.Done()
 				for j := 0; j < logsPerGoroutine; j++ {
-					handler1.Handle(nil, slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
+					_ = handler1.Handle(context.TODO(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
 				}
 			}()
 		}
@@ -108,7 +109,7 @@ func TestPerformanceReport(t *testing.T) {
 				defer wg1.Done()
 				// 模拟任务执行
 				for j := 0; j < logsPerTask; j++ {
-					handler1.Handle(nil, slog.NewRecord(time.Now(), slog.LevelInfo, fmt.Sprintf("Task %d executing step %d", taskID, j), 0))
+					_ = handler1.Handle(context.TODO(), slog.NewRecord(time.Now(), slog.LevelInfo, fmt.Sprintf("Task %d executing step %d", taskID, j), 0))
 					time.Sleep(10 * time.Microsecond) // 模拟任务处理
 				}
 			}(i)
@@ -151,7 +152,7 @@ func TestPerformanceReport(t *testing.T) {
 		handler1 := slog.NewTextHandler(&buf1, nil)
 		start1 := time.Now()
 		for i := 0; i < count; i++ {
-			handler1.Handle(nil, slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
+			_ = handler1.Handle(context.TODO(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
 		}
 		sync1 := time.Since(start1)
 
