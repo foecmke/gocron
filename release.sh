@@ -212,8 +212,10 @@ fi
 # 生成 release notes
 cat > /tmp/release_notes.md <<EOF
 
-Performance boost: Async batch logging delivers 7-13% performance improvement with backward compatibility.
-Linux CGO support: Full SQLite integration for robust Linux deployments with cross-compilation toolchain.
+perf: add db indexes to optimize query performance
+style: improve UI layout spacing
+chore: upgrade outdated dependencies
+fix: upgrade host ID fields from int16 to int to prevent overflow and add migration v1.5.5
 
 EOF
 

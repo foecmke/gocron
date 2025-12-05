@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net"
 	"os"
 	"os/signal"
@@ -11,7 +12,6 @@ import (
 	pb "github.com/gocronx-team/gocron/internal/modules/rpc/proto"
 	"github.com/gocronx-team/gocron/internal/modules/utils"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"

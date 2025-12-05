@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"github.com/gocronx-team/gocron/internal/modules/logger"
 	"github.com/gocronx-team/gocron/internal/modules/rpc/grpcpool"
 	pb "github.com/gocronx-team/gocron/internal/modules/rpc/proto"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 )
 
