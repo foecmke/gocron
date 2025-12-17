@@ -265,7 +265,9 @@ func TestSetting_CreateWebhookUrl_DuplicateNames(t *testing.T) {
 // BenchmarkSetting_CreateWebhookUrl 性能测试：创建webhook地址
 func BenchmarkSetting_CreateWebhookUrl(b *testing.B) {
 	db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	db.AutoMigrate(&Setting{})
+	if err := db.AutoMigrate(&Setting{}); err != nil {
+		b.Fatalf("failed to migrate: %v", err)
+	}
 	Db = db
 
 	setting := &Setting{}
@@ -279,7 +281,9 @@ func BenchmarkSetting_CreateWebhookUrl(b *testing.B) {
 // BenchmarkSetting_Webhook 性能测试：获取webhook配置
 func BenchmarkSetting_Webhook(b *testing.B) {
 	db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	db.AutoMigrate(&Setting{})
+	if err := db.AutoMigrate(&Setting{}); err != nil {
+		b.Fatalf("failed to migrate: %v", err)
+	}
 	Db = db
 
 	setting := &Setting{}
