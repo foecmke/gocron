@@ -178,7 +178,7 @@ export default {
   name: 'task-log',
   setup() {
     const { t, locale } = useI18n()
-    return { t, locale }
+    return { t, locale, availableLanguages }
   },
   data() {
     const userStore = useUserStore()
