@@ -3,7 +3,7 @@
     <el-main>
       <el-row type="flex" justify="end">
         <el-col :span="2">
-          <el-button type="primary"  @click="toEdit(null)">{{ t('common.add') }}</el-button>
+          <el-button type="primary" @click="toEdit(null)">{{ t('common.add') }}</el-button>
         </el-col>
         <el-col :span="2">
           <el-button type="info" @click="refresh">{{ t('common.refresh') }}</el-button>
@@ -16,32 +16,16 @@
         v-model:current-page="searchParams.page"
         v-model:page-size="searchParams.page_size"
         @size-change="changePageSize"
-        @current-change="changePage">
+        @current-change="changePage"
+      >
       </el-pagination>
-      <el-table
-        :data="users"
-        tooltip-effect="dark"
-        border
-        style="width: 100%">
-        <el-table-column
-          prop="id"
-          label="ID">
+      <el-table :data="users" tooltip-effect="dark" border style="width: 100%">
+        <el-table-column prop="id" label="ID"> </el-table-column>
+        <el-table-column prop="name" :label="t('user.username')"> </el-table-column>
+        <el-table-column prop="email" :label="t('user.email')"> </el-table-column>
+        <el-table-column prop="is_admin" :formatter="formatRole" :label="t('user.role')">
         </el-table-column>
-        <el-table-column
-          prop="name"
-          :label="t('user.username')">
-        </el-table-column>
-        <el-table-column
-          prop="email"
-          :label="t('user.email')">
-        </el-table-column>
-        <el-table-column
-          prop="is_admin"
-          :formatter="formatRole"
-          :label="t('user.role')">
-        </el-table-column>
-        <el-table-column
-          :label="t('common.status')">
+        <el-table-column :label="t('common.status')">
           <template #default="scope">
             <el-switch
               v-model="scope.row.status"
@@ -49,15 +33,26 @@
               :inactive-value="0"
               active-color="#13ce66"
               @change="changeStatus(scope.row)"
-              inactive-color="#ff4949">
+              inactive-color="#ff4949"
+            >
             </el-switch>
           </template>
         </el-table-column>
-        <el-table-column :label="t('common.operation')" :width="locale === 'zh-CN' ? 280 : 340" v-if="this.isAdmin">
+        <el-table-column
+          :label="t('common.operation')"
+          :width="locale === availableLanguages.zhCN.value ? 280 : 340"
+          v-if="this.isAdmin"
+        >
           <template #default="scope">
-            <el-button type="primary" size="small" @click="toEdit(scope.row)">{{ t('common.edit') }}</el-button>
-            <el-button type="success" size="small" @click="editPassword(scope.row)">{{ t('user.changePassword') }}</el-button>
-            <el-button type="danger" size="small" @click="remove(scope.row)">{{ t('common.delete') }}</el-button>
+            <el-button type="primary" size="small" @click="toEdit(scope.row)">{{
+              t('common.edit')
+            }}</el-button>
+            <el-button type="success" size="small" @click="editPassword(scope.row)">{{
+              t('user.changePassword')
+            }}</el-button>
+            <el-button type="danger" size="small" @click="remove(scope.row)">{{
+              t('common.delete')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -70,6 +65,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessageBox } from 'element-plus'
 import userService from '../../api/user'
 import { useUserStore } from '../../stores/user'
+import { availableLanguages } from '@/const/lang'
 
 export default {
   name: 'user-list',
@@ -77,7 +73,7 @@ export default {
     const { t, locale } = useI18n()
     return { t, locale }
   },
-  data () {
+  data() {
     const userStore = useUserStore()
     return {
       users: [],
@@ -89,36 +85,36 @@ export default {
       isAdmin: userStore.isAdmin
     }
   },
-  created () {
+  created() {
     this.search()
   },
-  activated () {
+  activated() {
     this.search()
   },
   methods: {
-    changeStatus (item) {
+    changeStatus(item) {
       if (item.status) {
         userService.enable(item.id)
       } else {
         userService.disable(item.id)
       }
     },
-    formatRole (row, col) {
+    formatRole(row, col) {
       if (row[col.property] === 1) {
         return this.t('user.admin')
       }
       return this.t('user.normalUser')
     },
-    changePage (page) {
+    changePage(page) {
       this.searchParams.page = page
       this.search()
     },
-    changePageSize (pageSize) {
+    changePageSize(pageSize) {
       this.searchParams.page_size = pageSize
       this.search()
     },
-    search (callback = null) {
-      userService.list(this.searchParams, (data) => {
+    search(callback = null) {
+      userService.list(this.searchParams, data => {
         this.users = data.data
         this.userTotal = data.total
         if (callback) {
@@ -126,19 +122,21 @@ export default {
         }
       })
     },
-    remove (item) {
+    remove(item) {
       ElMessageBox.confirm(this.t('message.confirmDeleteUser'), this.t('common.tip'), {
         confirmButtonText: this.t('common.confirm'),
         cancelButtonText: this.t('common.cancel'),
         type: 'warning',
         center: true
-      }).then(() => {
-        userService.remove(item.id, () => {
-          this.refresh()
+      })
+        .then(() => {
+          userService.remove(item.id, () => {
+            this.refresh()
+          })
         })
-      }).catch(() => {})
+        .catch(() => {})
     },
-    toEdit (item) {
+    toEdit(item) {
       let path = ''
       if (item === null) {
         path = '/user/create'
@@ -147,12 +145,12 @@ export default {
       }
       this.$router.push(path)
     },
-    refresh () {
+    refresh() {
       this.search(() => {
         this.$message.success(this.t('message.refreshSuccess'))
       })
     },
-    editPassword (item) {
+    editPassword(item) {
       this.$router.push(`/user/edit-password/${item.id}`)
     }
   }

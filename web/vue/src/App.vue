@@ -29,6 +29,7 @@ import { ElConfigProvider } from 'element-plus'
 import zhCN from 'element-plus/es/locale/lang/zh-cn'
 import en from 'element-plus/es/locale/lang/en'
 import { useI18n } from 'vue-i18n'
+import { availableLanguages } from './const/index'
 
 const { locale } = useI18n()
 const router = useRouter()
@@ -36,9 +37,9 @@ const userStore = useUserStore()
 
 const activeLang = computed(() => {
   switch (locale.value) {
-    case 'en-US':
+    case availableLanguages.enUS.value:
       return en
-    case 'zh-CN':
+    case availableLanguages.zhCN.value:
       return zhCN
     default:
       return zhCN
