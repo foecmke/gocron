@@ -202,9 +202,16 @@ func keepDbAlived(db *gorm.DB) {
 
 // 确保 SQLite 数据库文件所在目录存在
 func ensureSqliteDir(dbPath string) {
+	// 清理并规范化路径
+	dbPath = filepath.Clean(dbPath)
 	dir := filepath.Dir(dbPath)
+	
 	if dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		// 验证路径不是绝对路径时，确保不包含父目录引用
+		if !filepath.IsAbs(dbPath) && strings.Contains(dbPath, "..") {
+			glogger.Fatal("非法的数据库路径", nil)
+		}
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			glogger.Fatal("创建SQLite数据库目录失败", err)
 		}
 	}

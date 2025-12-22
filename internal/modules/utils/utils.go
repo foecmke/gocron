@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"crypto/md5"
+	"crypto/sha256"
 	crand "crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"text/template"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
@@ -42,11 +44,35 @@ func RandString(length int64) string {
 }
 
 // 生成32位MD5摘要
+// 已弃用：不应用于密码哈希，仅用于非安全场景如API签名
 func Md5(str string) string {
 	m := md5.New()
 	m.Write([]byte(str))
-
 	return hex.EncodeToString(m.Sum(nil))
+}
+
+// HashPassword 使用bcrypt安全地哈希密码
+func HashPassword(password string) (string, error) {
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(hashed), err
+}
+
+// VerifyPassword 验证密码（支持bcrypt和旧的MD5格式）
+func VerifyPassword(hashedPassword, password, salt string) bool {
+	// bcrypt格式以$2a$, $2b$, $2y$开头
+	if strings.HasPrefix(hashedPassword, "$2") {
+		err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+		return err == nil
+	}
+	// 旧的MD5格式（向后兼容）
+	return hashedPassword == Md5(password+salt)
+}
+
+// Sha256 生成SHA256哈希（用于API签名等非密码场景）
+func Sha256(str string) string {
+	h := sha256.New()
+	h.Write([]byte(str))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // 生成0-max之间随机数

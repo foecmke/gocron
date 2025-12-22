@@ -400,7 +400,7 @@ func apiAuth(c *gin.Context) {
 		return
 	}
 	raw := apiKey + strconv.FormatInt(timeParam, 10) + strings.TrimSpace(c.Request.URL.Path) + apiSecret
-	realSign := utils.Md5(raw)
+	realSign := utils.Sha256(raw)
 	if sign != realSign {
 		msg := json.CommonFailure(i18n.T(c, "sign_verify_failed"))
 		c.String(http.StatusOK, msg)

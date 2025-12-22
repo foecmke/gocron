@@ -41,7 +41,7 @@
         <el-table-column
           :label="t('common.operation')"
           :width="locale === availableLanguages.zhCN.value ? 280 : 340"
-          v-if="this.isAdmin"
+          v-if="isAdmin"
         >
           <template #default="scope">
             <el-button type="primary" size="small" @click="toEdit(scope.row)">{{
@@ -71,7 +71,7 @@ export default {
   name: 'user-list',
   setup() {
     const { t, locale } = useI18n()
-    return { t, locale }
+    return { t, locale, availableLanguages }
   },
   data() {
     const userStore = useUserStore()
@@ -85,10 +85,7 @@ export default {
       isAdmin: userStore.isAdmin
     }
   },
-  created() {
-    this.search()
-  },
-  activated() {
+  mounted() {
     this.search()
   },
   methods: {
