@@ -477,9 +477,12 @@ func execDependencyTask(taskModel models.Task, taskResult TaskResult) {
 		return
 	}
 	if len(tasks) == 0 {
-		logger.Errorf("依赖任务列表为空#主任务ID-%d", taskModel.Id)
+		logger.Warnf("依赖任务列表为空或任务未启用#主任务ID-%d#依赖任务ID-%s", taskModel.Id, dependencyTaskId)
+		return
 	}
+	logger.Infof("开始执行依赖任务#主任务ID-%d#依赖任务数量-%d", taskModel.Id, len(tasks))
 	for _, task := range tasks {
+		logger.Infof("执行依赖任务#主任务ID-%d#依赖任务ID-%d#依赖任务名称-%s", taskModel.Id, task.Id, task.Name)
 		task.Spec = fmt.Sprintf("依赖任务(主任务ID-%d)", taskModel.Id)
 		ServiceTask.Run(task)
 	}

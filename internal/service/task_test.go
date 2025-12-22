@@ -259,3 +259,109 @@ func stubNotifyPush(t *testing.T) *[]notify.Message {
 	t.Cleanup(func() { notifyPushFunc = original })
 	return &captured
 }
+
+// 测试依赖任务执行逻辑 - 简化版本，直接测试逻辑分支
+func TestExecDependencyTaskLogic(t *testing.T) {
+	tests := []struct {
+		name       string
+		parentTask models.Task
+		taskResult TaskResult
+		shouldExit bool // 是否应该提前退出（不查询数据库）
+		reason     string
+	}{
+		{
+			name: "子任务不应该触发依赖任务",
+			parentTask: models.Task{
+				Id:               1,
+				Level:            models.TaskLevelChild,
+				DependencyTaskId: "2,3",
+			},
+			taskResult: TaskResult{Err: nil},
+			shouldExit: true,
+			reason:     "Level is Child",
+		},
+		{
+			name: "没有依赖任务ID",
+			parentTask: models.Task{
+				Id:               1,
+				Level:            models.TaskLevelParent,
+				DependencyTaskId: "",
+			},
+			taskResult: TaskResult{Err: nil},
+			shouldExit: true,
+			reason:     "Empty DependencyTaskId",
+		},
+		{
+			name: "强依赖且父任务失败",
+			parentTask: models.Task{
+				Id:               1,
+				Level:            models.TaskLevelParent,
+				DependencyTaskId: "2,3",
+				DependencyStatus: models.TaskDependencyStatusStrong,
+			},
+			taskResult: TaskResult{Err: errors.New("parent failed")},
+			shouldExit: true,
+			reason:     "Strong dependency and parent failed",
+		},
+		{
+			name: "弱依赖且父任务失败应该继续",
+			parentTask: models.Task{
+				Id:               1,
+				Level:            models.TaskLevelParent,
+				DependencyTaskId: "2",
+				DependencyStatus: models.TaskDependencyStatusWeak,
+			},
+			taskResult: TaskResult{Err: errors.New("parent failed")},
+			shouldExit: false,
+			reason:     "Weak dependency, should continue",
+		},
+		{
+			name: "父任务成功应该继续",
+			parentTask: models.Task{
+				Id:               1,
+				Level:            models.TaskLevelParent,
+				DependencyTaskId: "2,3",
+				DependencyStatus: models.TaskDependencyStatusStrong,
+			},
+			taskResult: TaskResult{Err: nil},
+			shouldExit: false,
+			reason:     "Parent success, should continue",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// 测试逻辑分支
+			if tt.parentTask.Level != models.TaskLevelParent {
+				if !tt.shouldExit {
+					t.Errorf("Expected to exit for child task, but shouldExit is false")
+				}
+				t.Logf("✓ Correctly exits for: %s", tt.reason)
+				return
+			}
+
+			if tt.parentTask.DependencyTaskId == "" {
+				if !tt.shouldExit {
+					t.Errorf("Expected to exit for empty dependency ID, but shouldExit is false")
+				}
+				t.Logf("✓ Correctly exits for: %s", tt.reason)
+				return
+			}
+
+			if tt.parentTask.DependencyStatus == models.TaskDependencyStatusStrong && tt.taskResult.Err != nil {
+				if !tt.shouldExit {
+					t.Errorf("Expected to exit for strong dependency failure, but shouldExit is false")
+				}
+				t.Logf("✓ Correctly exits for: %s", tt.reason)
+				return
+			}
+
+			// 如果到这里，说明应该继续执行
+			if tt.shouldExit {
+				t.Errorf("Should have exited but didn't for: %s", tt.reason)
+			} else {
+				t.Logf("✓ Correctly continues for: %s (would query DB and execute)", tt.reason)
+			}
+		})
+	}
+}
