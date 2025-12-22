@@ -12,7 +12,7 @@ const PasswordSaltLength = 6
 type User struct {
 	Id           int       `json:"id" gorm:"primaryKey;autoIncrement"`
 	Name         string    `json:"name" gorm:"type:varchar(32);not null;uniqueIndex"`
-	Password     string    `json:"-" gorm:"type:char(32);not null"`
+	Password     string    `json:"-" gorm:"type:varchar(100);not null"`
 	Salt         string    `json:"-" gorm:"type:char(6);not null"`
 	Email        string    `json:"email" gorm:"type:varchar(50);not null;uniqueIndex;default:''"`
 	TwoFactorKey string    `json:"-" gorm:"column:two_factor_key;type:varchar(100);default:''"`
@@ -27,8 +27,11 @@ type User struct {
 // 新增
 func (user *User) Create() (insertId int, err error) {
 	user.Status = Enabled
-	user.Salt = user.generateSalt()
-	user.Password = user.encryptPassword(user.Password, user.Salt)
+	user.Salt = "" // bcrypt不需要单独的salt
+	user.Password, err = utils.HashPassword(user.Password)
+	if err != nil {
+		return 0, err
+	}
 
 	result := Db.Create(user)
 	if result.Error == nil {
@@ -49,10 +52,11 @@ func (user *User) Update(id int, data CommonMap) (int64, error) {
 }
 
 func (user *User) UpdatePassword(id int, password string) (int64, error) {
-	salt := user.generateSalt()
-	safePassword := user.encryptPassword(password, salt)
-
-	return user.Update(id, CommonMap{"password": safePassword, "salt": salt})
+	safePassword, err := utils.HashPassword(password)
+	if err != nil {
+		return 0, err
+	}
+	return user.Update(id, CommonMap{"password": safePassword, "salt": ""})
 }
 
 // 删除
@@ -77,9 +81,7 @@ func (user *User) Match(username, password string) bool {
 	if err != nil {
 		return false
 	}
-	hashPassword := user.encryptPassword(password, user.Salt)
-
-	return hashPassword == user.Password
+	return utils.VerifyPassword(user.Password, password, user.Salt)
 }
 
 // 获取用户详情
@@ -123,12 +125,4 @@ func (user *User) Total() (int64, error) {
 	return count, err
 }
 
-// 密码加密
-func (user *User) encryptPassword(password, salt string) string {
-	return utils.Md5(password + salt)
-}
 
-// 生成密码盐值
-func (user *User) generateSalt() string {
-	return utils.RandString(PasswordSaltLength)
-}
