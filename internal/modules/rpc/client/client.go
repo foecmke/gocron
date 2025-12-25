@@ -9,7 +9,6 @@ import (
 
 	"google.golang.org/grpc/status"
 
-	"github.com/gocronx-team/gocron/internal/models"
 	"github.com/gocronx-team/gocron/internal/modules/logger"
 	"github.com/gocronx-team/gocron/internal/modules/rpc/grpcpool"
 	pb "github.com/gocronx-team/gocron/internal/modules/rpc/proto"
@@ -26,16 +25,24 @@ func generateTaskUniqueKey(ip string, port int, id int64) string {
 }
 
 func Stop(ip string, port int, id int64) {
-	key := generateTaskUniqueKey(ip, port, id)
-	logger.Infof("尝试停止任务#key-%s#taskLogId-%d", key, id)
-	cancel, ok := taskCtxMap.Load(key)
-	if !ok {
-		logger.Warnf("未找到运行中的任务，可能是历史任务，直接更新数据库状态#key-%s", key)
-		updateOrphanedTaskLog(id)
+	// 通过RPC调用通知服务端停止任务
+	addr := fmt.Sprintf("%s:%d", ip, port)
+	c, err := grpcpool.Pool.Get(addr)
+	if err != nil {
+		logger.Errorf("连接服务器失败#%s#%v", addr, err)
 		return
 	}
-	logger.Infof("找到运行中的任务，取消context#key-%s", key)
-	cancel.(context.CancelFunc)()
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	
+	_, err = c.Run(ctx, &pb.TaskRequest{
+		Command: "__STOP__",
+		Id:      id,
+	})
+	if err != nil {
+		logger.Errorf("发送停止信号失败#%v", err)
+	}
 }
 
 func Exec(ip string, port int, taskReq *pb.TaskRequest) (string, error) {
@@ -58,12 +65,8 @@ func Exec(ip string, port int, taskReq *pb.TaskRequest) (string, error) {
 	defer cancel()
 
 	taskUniqueKey := generateTaskUniqueKey(ip, port, taskReq.Id)
-	logger.Infof("任务开始执行，存储cancel函数#key-%s#taskLogId-%d", taskUniqueKey, taskReq.Id)
 	taskCtxMap.Store(taskUniqueKey, cancel)
-	defer func() {
-		logger.Infof("任务执行完成，删除cancel函数#key-%s", taskUniqueKey)
-		taskCtxMap.Delete(taskUniqueKey)
-	}()
+	defer taskCtxMap.Delete(taskUniqueKey)
 
 	resp, err := c.Run(ctx, taskReq)
 
@@ -77,6 +80,11 @@ func Exec(ip string, port int, taskReq *pb.TaskRequest) (string, error) {
 
 	if resp.Error == "" {
 		return resp.Output, nil
+	}
+
+	// 检查是否是手动停止
+	if resp.Error == "manual stop" {
+		return resp.Output, errors.New("手动停止")
 	}
 
 	return resp.Output, errors.New(resp.Error)
@@ -107,16 +115,4 @@ func parseGRPCErrorOnly(err error) error {
 	return err
 }
 
-// 处理孤立的任务日志（重启后丢失的任务）
-func updateOrphanedTaskLog(taskLogId int64) {
-	taskLogModel := new(models.TaskLog)
-	_, err := taskLogModel.Update(taskLogId, models.CommonMap{
-		"status": models.Cancel,
-		"result": "系统重启后手动停止",
-	})
-	if err != nil {
-		logger.Errorf("更新孤立任务日志状态失败#taskLogId-%d#错误-%s", taskLogId, err.Error())
-	} else {
-		logger.Infof("已更新孤立任务日志状态为已取消#taskLogId-%d", taskLogId)
-	}
-}
+

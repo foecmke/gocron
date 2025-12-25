@@ -8,7 +8,7 @@ import (
 
 	"github.com/gocronx-team/gocron/internal/modules/app"
 	"github.com/gocronx-team/gocron/internal/modules/rpc/auth"
-	"github.com/gocronx-team/gocron/internal/modules/rpc/proto"
+	pb "github.com/gocronx-team/gocron/internal/modules/rpc/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
@@ -34,7 +34,7 @@ var (
 
 type Client struct {
 	conn      *grpc.ClientConn
-	rpcClient rpc.TaskClient
+	rpcClient pb.TaskClient
 }
 
 type GRPCPool struct {
@@ -43,7 +43,7 @@ type GRPCPool struct {
 	mu    sync.RWMutex
 }
 
-func (p *GRPCPool) Get(addr string) (rpc.TaskClient, error) {
+func (p *GRPCPool) Get(addr string) (pb.TaskClient, error) {
 	p.mu.RLock()
 	client, ok := p.conns[addr]
 	p.mu.RUnlock()
@@ -116,7 +116,7 @@ func (p *GRPCPool) factory(addr string) (*Client, error) {
 
 	client = &Client{
 		conn:      conn,
-		rpcClient: rpc.NewTaskClient(conn),
+		rpcClient: pb.NewTaskClient(conn),
 	}
 
 	p.conns[addr] = client
