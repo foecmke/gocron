@@ -59,15 +59,24 @@ func ExecShell(ctx context.Context, command string) (string, error) {
 		return "", fmt.Errorf("写入批处理文件失败: %w", err)
 	}
 
+	// 确保文件内容写入磁盘
+	err = batFile.Sync()
+	if err != nil {
+		return "", fmt.Errorf("同步批处理文件失败: %w", err)
+	}
+
 	// 使用 cmd.exe 执行批处理文件
 	cmd := exec.Command("cmd")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow: true,
 		CmdLine:    `cmd /c "` + batFile.Name() + `"`,
 	}
-
-	// 设置工作目录为临时目录
-	cmd.Dir = os.TempDir()
+	// 设置工作目录为用户家目录，避免 getcwd 错误
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		cmd.Dir = homeDir
+	} else {
+		cmd.Dir = os.TempDir()
+	}
 
 	// 使用管道实时捕获输出
 	stdout, err := cmd.StdoutPipe()

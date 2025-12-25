@@ -54,7 +54,7 @@ func ExecShell(ctx context.Context, command string) (string, error) {
 	}
 
 	// 给脚本文件添加执行权限
-	err = os.Chmod(tmpFile.Name(), 0755)
+	err = os.Chmod(tmpFile.Name(), 0700)
 	if err != nil {
 		return "", fmt.Errorf("设置脚本执行权限失败: %w", err)
 	}
@@ -65,8 +65,12 @@ func ExecShell(ctx context.Context, command string) (string, error) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
 	}
-	// 设置工作目录为临时目录
-	cmd.Dir = tmpDir
+	// 设置工作目录为用户家目录，避免 getcwd 错误
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		cmd.Dir = homeDir
+	} else {
+		cmd.Dir = tmpDir
+	}
 
 	// 使用管道实时捕获输出
 	stdout, err := cmd.StdoutPipe()
