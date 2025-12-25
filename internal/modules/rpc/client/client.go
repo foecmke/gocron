@@ -9,7 +9,7 @@ import (
 
 	"google.golang.org/grpc/status"
 
-	"github.com/gocronx-team/gocron/internal/models"
+	"github.com/gocronx-team/gocron/internal/modules/i18n"
 	"github.com/gocronx-team/gocron/internal/modules/logger"
 	"github.com/gocronx-team/gocron/internal/modules/rpc/grpcpool"
 	pb "github.com/gocronx-team/gocron/internal/modules/rpc/proto"
@@ -17,11 +17,9 @@ import (
 )
 
 var (
-	taskMap sync.Map
-)
-
-var (
-	errUnavailable = errors.New("无法连接远程服务器")
+	taskCtxMap     sync.Map // 存储任务执行的 context.CancelFunc
+	errUnavailable = errors.New(i18n.Translate("rpc_unavailable"))
+	ErrManualStop  = errors.New("rpc_manual_stop") // 特殊错误标识，用于判断是否手动停止
 )
 
 func generateTaskUniqueKey(ip string, port int, id int64) string {
@@ -29,17 +27,26 @@ func generateTaskUniqueKey(ip string, port int, id int64) string {
 }
 
 func Stop(ip string, port int, id int64) {
-	key := generateTaskUniqueKey(ip, port, id)
-	logger.Infof("尝试停止任务#key-%s#taskLogId-%d", key, id)
-	cancel, ok := taskMap.Load(key)
-	if !ok {
-		logger.Warnf("未找到运行中的任务，可能是历史任务，直接更新数据库状态#key-%s", key)
-		// 对于历史任务（重启后丢失的任务），直接更新数据库状态
-		updateOrphanedTaskLog(id)
-		return
-	}
-	logger.Infof("找到运行中的任务，执行停止#key-%s", key)
-	cancel.(context.CancelFunc)()
+	// 异步发送停止信号，不阻塞调用者
+	go func() {
+		addr := fmt.Sprintf("%s:%d", ip, port)
+		c, err := grpcpool.Pool.Get(addr)
+		if err != nil {
+			logger.Errorf("连接服务器失败#%s#%v", addr, err)
+			return
+		}
+		
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		
+		_, err = c.Run(ctx, &pb.TaskRequest{
+			Command: "__STOP__",
+			Id:      id,
+		})
+		if err != nil {
+			logger.Errorf("发送停止信号失败#%v", err)
+		}
+	}()
 }
 
 func Exec(ip string, port int, taskReq *pb.TaskRequest) (string, error) {
@@ -57,24 +64,31 @@ func Exec(ip string, port int, taskReq *pb.TaskRequest) (string, error) {
 		taskReq.Timeout = 86400
 	}
 	timeout := time.Duration(taskReq.Timeout) * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	// RPC context: 比任务超时多5秒，给服务端时间清理进程并返回输出
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+5*time.Second)
 	defer cancel()
 
 	taskUniqueKey := generateTaskUniqueKey(ip, port, taskReq.Id)
-	logger.Infof("任务开始执行，存储cancel函数#key-%s#taskLogId-%d", taskUniqueKey, taskReq.Id)
-	taskMap.Store(taskUniqueKey, cancel)
-	defer func() {
-		logger.Infof("任务执行完成，删除cancel函数#key-%s", taskUniqueKey)
-		taskMap.Delete(taskUniqueKey)
-	}()
+	taskCtxMap.Store(taskUniqueKey, cancel)
+	defer taskCtxMap.Delete(taskUniqueKey)
 
 	resp, err := c.Run(ctx, taskReq)
+
+	// 处理响应：即使有错误，也要返回已产生的输出
 	if err != nil {
+		if resp != nil && resp.Output != "" {
+			return resp.Output, parseGRPCErrorOnly(err)
+		}
 		return parseGRPCError(err)
 	}
 
 	if resp.Error == "" {
 		return resp.Output, nil
+	}
+
+	// 检查是否是手动停止
+	if resp.Error == "manual stop" {
+		return resp.Output, ErrManualStop
 	}
 
 	return resp.Output, errors.New(resp.Error)
@@ -85,23 +99,24 @@ func parseGRPCError(err error) (string, error) {
 	case codes.Unavailable:
 		return "", errUnavailable
 	case codes.DeadlineExceeded:
-		return "", errors.New("执行超时, 强制结束")
+		return "", errors.New(i18n.Translate("rpc_timeout"))
 	case codes.Canceled:
-		return "", errors.New("手动停止")
+		return "", ErrManualStop
 	}
 	return "", err
 }
 
-// 处理孤立的任务日志（重启后丢失的任务）
-func updateOrphanedTaskLog(taskLogId int64) {
-	taskLogModel := new(models.TaskLog)
-	_, err := taskLogModel.Update(taskLogId, models.CommonMap{
-		"status": models.Cancel,
-		"result": "系统重启后手动停止",
-	})
-	if err != nil {
-		logger.Errorf("更新孤立任务日志状态失败#taskLogId-%d#错误-%s", taskLogId, err.Error())
-	} else {
-		logger.Infof("已更新孤立任务日志状态为已取消#taskLogId-%d", taskLogId)
+// parseGRPCErrorOnly 只返回错误，不返回输出
+func parseGRPCErrorOnly(err error) error {
+	switch status.Code(err) {
+	case codes.Unavailable:
+		return errUnavailable
+	case codes.DeadlineExceeded:
+		return errors.New(i18n.Translate("rpc_timeout"))
+	case codes.Canceled:
+		return ErrManualStop
 	}
+	return err
 }
+
+

@@ -1,10 +1,12 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,7 +19,12 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
-type Server struct{}
+type Server struct{
+	pb.UnimplementedTaskServer
+	taskContexts sync.Map // 存储正在运行的任务上下文
+	taskOutputs  sync.Map // 存储任务输出
+	stopChans    sync.Map // 存储停止通道
+}
 
 var keepAlivePolicy = keepalive.EnforcementPolicy{
 	MinTime:             10 * time.Second,
@@ -30,24 +37,79 @@ var keepAliveParams = keepalive.ServerParameters{
 	Timeout:           3 * time.Second,
 }
 
-func (s Server) Run(ctx context.Context, req *pb.TaskRequest) (*pb.TaskResponse, error) {
+func (s *Server) Run(ctx context.Context, req *pb.TaskRequest) (*pb.TaskResponse, error) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Error(err)
 		}
 	}()
 
-	log.Infof("execute cmd start: [id: %d cmd: %s]", req.Id, req.Command)
+	// 清理 HTML 实体
+	cleanedCmd := utils.CleanHTMLEntities(req.Command)
 
-	output, err := utils.ExecShell(ctx, req.Command)
+	// 检测是否是停止信号
+	if cleanedCmd == "__STOP__" {
+		if ch, ok := s.stopChans.Load(req.Id); ok {
+			close(ch.(chan struct{}))
+		}
+		return &pb.TaskResponse{
+			Output: "",
+			Error:  "",
+		}, nil
+	}
+
+	// 使用任务超时创建独立的 context
+	timeout := time.Duration(req.Timeout) * time.Second
+	taskCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	
+	// 存储任务上下文和输出 buffer
+	outputBuf := &bytes.Buffer{}
+	stopChan := make(chan struct{})
+	s.taskContexts.Store(req.Id, cancel)
+	s.taskOutputs.Store(req.Id, outputBuf)
+	s.stopChans.Store(req.Id, stopChan)
+	defer func() {
+		s.taskContexts.Delete(req.Id)
+		s.stopChans.Delete(req.Id)
+		// 保留输出 5 秒，给 Stop 调用时间获取
+		time.AfterFunc(5*time.Second, func() {
+			s.taskOutputs.Delete(req.Id)
+		})
+	}()
+	
+	// 监听客户端取消或停止信号
+	wasStopped := false
+	go func() {
+		select {
+		case <-ctx.Done():
+			cancel()
+		case <-stopChan:
+			wasStopped = true
+			cancel()
+		case <-taskCtx.Done():
+		}
+	}()
+
+	// 执行命令
+	output, execErr := utils.ExecShell(taskCtx, cleanedCmd)
+	outputBuf.WriteString(output)
+	
 	resp := new(pb.TaskResponse)
 	resp.Output = output
-	if err != nil {
-		resp.Error = err.Error()
+	if execErr != nil {
+		// 如果是手动停止，使用特定的错误信息
+		if wasStopped {
+			resp.Error = "manual stop"
+			log.Infof("[id: %d] 手动停止\n%s", req.Id, output)
+		} else {
+			resp.Error = execErr.Error()
+			log.Infof("[id: %d] 执行失败: %s\n%s", req.Id, execErr.Error(), output)
+		}
 	} else {
 		resp.Error = ""
+		log.Infof("[id: %d] 执行成功\n%s", req.Id, output)
 	}
-	log.Infof("execute cmd end: [id: %d cmd: %s err: %s]", req.Id, req.Command, resp.Error)
 
 	return resp, nil
 }
@@ -70,7 +132,7 @@ func Start(addr string, enableTLS bool, certificate auth.Certificate) {
 		opts = append(opts, opt)
 	}
 	server := grpc.NewServer(opts...)
-	pb.RegisterTaskServer(server, Server{})
+	pb.RegisterTaskServer(server, &Server{})
 	log.Infof("server listen on %s", addr)
 
 	go func() {
