@@ -30,6 +30,8 @@ var (
 	VersionId int // 版本号
 	// VersionFile 版本文件
 	VersionFile string // 版本号文件
+	// AppVersion 应用版本号字符串，如 "1.6.3"
+	AppVersion string // 应用版本号字符串
 )
 
 // InitEnv 初始化
@@ -67,6 +69,7 @@ func InitEnv(versionString string) {
 	createDirIfNotExists(AppDir, ConfDir, LogDir)
 	Installed = IsInstalled()
 	VersionId = ToNumberVersion(versionString)
+	AppVersion = versionString
 }
 
 // IsInstalled 判断应用是否已安装

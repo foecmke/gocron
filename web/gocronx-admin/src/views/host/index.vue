@@ -117,6 +117,7 @@
     type AgentTokenResult
   } from '@/api/host'
   import { formatDateTime } from '@/utils/date'
+  import { copyToClipboard } from '@/utils/clipboard'
 
   defineOptions({ name: 'HostList' })
 
@@ -344,12 +345,13 @@
     }
   }
 
-  function copyInstallCmd() {
+  async function copyInstallCmd() {
     if (!agentTokenData.value?.install_cmd) return
-    navigator.clipboard
-      .writeText(agentTokenData.value.install_cmd)
-      .then(() => ElMessage.success(t('host.copySuccess')))
-      .catch(() => ElMessage.error(t('host.copyFailed')))
+    if (await copyToClipboard(agentTokenData.value.install_cmd)) {
+      ElMessage.success(t('host.copySuccess'))
+    } else {
+      ElMessage.error(t('host.copyFailed'))
+    }
   }
 </script>
 

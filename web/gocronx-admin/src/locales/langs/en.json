@@ -19,7 +19,8 @@
       "userCenter": "User center",
       "docs": "Document",
       "github": "Github",
-      "logout": "Log out"
+      "logout": "Log out",
+      "version": "Version"
     },
     "guide": {
       "title": "Click here to view",

@@ -161,6 +161,7 @@ func Register(r *gin.Engine) {
 			webhookGroup.POST("/url", manage.CreateWebhookUrl)
 			webhookGroup.POST("/url/remove/:id", manage.RemoveWebhookUrl)
 		}
+		systemGroup.GET("/version", manage.Version)
 		systemGroup.GET("/login-log", loginlog.Index)
 		systemGroup.GET("/log-retention", manage.GetLogRetentionDays)
 		systemGroup.POST("/log-retention", manage.UpdateLogRetentionDays)
@@ -411,6 +412,7 @@ func urlAuth(c *gin.Context) {
 	allowPaths := []string{
 		"",
 		"/api/install/status",
+		"/api/system/version",
 		"/api/task",
 		"/api/task/tags",
 		"/api/task/log",

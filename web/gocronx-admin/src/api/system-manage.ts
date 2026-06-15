@@ -7,3 +7,10 @@ export function fetchGetMenuList() {
     url: '/api/v3/system/menus/simple'
   })
 }
+
+// 获取应用版本号
+export function fetchSystemVersion() {
+  return request.get<{ version: string }>({
+    url: '/api/system/version'
+  })
+}

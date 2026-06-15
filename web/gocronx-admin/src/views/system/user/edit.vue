@@ -142,6 +142,7 @@
   import type { FormInstance, FormRules } from 'element-plus'
   import request from '@/utils/http'
   import { fetchUserDetail } from '@/api/user'
+  import { copyToClipboard } from '@/utils/clipboard'
 
   defineOptions({ name: 'UserEdit' })
 
@@ -271,7 +272,7 @@
 
     form.password = pwd
     form.confirm_password = pwd
-    navigator.clipboard?.writeText(pwd).catch(() => {})
+    void copyToClipboard(pwd)
     ElMessage.success(t('user.generatedHint'))
   }
 

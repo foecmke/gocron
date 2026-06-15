@@ -19,7 +19,8 @@
       "userCenter": "个人中心",
       "docs": "使用文档",
       "github": "Github",
-      "logout": "退出登录"
+      "logout": "退出登录",
+      "version": "版本"
     },
     "guide": {
       "title": "点击这里查看",

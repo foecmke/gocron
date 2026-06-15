@@ -52,6 +52,9 @@
           <div class="log-out c-p" @click="loginOut">
             {{ $t('topBar.user.logout') }}
           </div>
+          <div v-if="appVersion" class="app-version">
+            {{ $t('topBar.user.version') }} v{{ appVersion }}
+          </div>
         </ul>
       </div>
     </template>
@@ -64,6 +67,7 @@
   import { ElMessageBox } from 'element-plus'
   import { useUserStore } from '@/store/modules/user'
   import { WEB_LINKS } from '@/utils/constants'
+  import { fetchSystemVersion } from '@/api/system-manage'
 
   defineOptions({ name: 'ArtUserMenu' })
 
@@ -73,6 +77,16 @@
 
   const { getUserInfo: userInfo } = storeToRefs(userStore)
   const userMenuPopover = ref()
+  const appVersion = ref('')
+
+  onMounted(async () => {
+    try {
+      const res = await fetchSystemVersion()
+      appVersion.value = res?.version || ''
+    } catch {
+      // 版本号获取失败不影响菜单使用
+    }
+  })
 
   // Deterministic avatar: first letter of username on a color hashed from the name.
   const avatarPalette = [
@@ -177,6 +191,10 @@
     transition-all
     duration-200
     hover:shadow-xl;
+  }
+
+  .app-version {
+    @apply mt-3 text-xs text-center text-g-500 select-none;
   }
 
   .user-avatar {

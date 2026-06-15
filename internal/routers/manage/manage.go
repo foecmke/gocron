@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gocronx-team/gocron/internal/models"
+	"github.com/gocronx-team/gocron/internal/modules/app"
 	"github.com/gocronx-team/gocron/internal/modules/logger"
 	"github.com/gocronx-team/gocron/internal/modules/utils"
 	"github.com/gocronx-team/gocron/internal/routers/base"
@@ -254,6 +255,14 @@ func RemoveWebhookUrl(c *gin.Context) {
 // endregion
 
 // region 系统配置
+
+// Version 返回应用版本号，供 Web UI 展示
+func Version(c *gin.Context) {
+	base.RespondSuccess(c, "", map[string]interface{}{
+		"version": app.AppVersion,
+	})
+}
+
 func GetLogRetentionDays(c *gin.Context) {
 	settingModel := new(models.Setting)
 	days := settingModel.GetLogRetentionDays()

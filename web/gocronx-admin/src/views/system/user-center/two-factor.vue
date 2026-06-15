@@ -109,6 +109,7 @@
   import { ElMessage } from 'element-plus'
   import { useI18n } from 'vue-i18n'
   import { get2FAStatus, setup2FA, enable2FA, disable2FA } from '@/api/user'
+  import { copyToClipboard } from '@/utils/clipboard'
 
   defineOptions({ name: 'TwoFactor' })
 
@@ -196,20 +197,10 @@
     }
   }
 
-  function copySecret() {
-    navigator.clipboard.writeText(secret.value).then(
-      () => ElMessage.success(t('twoFactor.secretCopied')),
-      () => {
-        // Fallback for older browsers
-        const el = document.createElement('input')
-        el.value = secret.value
-        document.body.appendChild(el)
-        el.select()
-        document.execCommand('copy')
-        document.body.removeChild(el)
-        ElMessage.success(t('twoFactor.secretCopied'))
-      }
-    )
+  async function copySecret() {
+    if (await copyToClipboard(secret.value)) {
+      ElMessage.success(t('twoFactor.secretCopied'))
+    }
   }
 
   function resetSetupState() {

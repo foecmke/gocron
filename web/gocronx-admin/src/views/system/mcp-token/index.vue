@@ -129,6 +129,7 @@
     type McpTokenItem
   } from '@/api/mcp-token'
   import { formatDateTime } from '@/utils/date'
+  import { copyToClipboard } from '@/utils/clipboard'
 
   defineOptions({ name: 'McpToken' })
 
@@ -215,11 +216,12 @@
     }
   }
 
-  function copyText(text: string) {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => ElMessage.success(t('mcpToken.copySuccess')))
-      .catch(() => ElMessage.error(t('mcpToken.copyFailed')))
+  async function copyText(text: string) {
+    if (await copyToClipboard(text)) {
+      ElMessage.success(t('mcpToken.copySuccess'))
+    } else {
+      ElMessage.error(t('mcpToken.copyFailed'))
+    }
   }
 
   onMounted(loadList)
