@@ -810,6 +810,9 @@
     "clear": "Clear",
     "empty": "Start a conversation with the AI ops assistant",
     "thinking": "Thinking…",
-    "toolsUsed": "Tools used"
+    "toolsUsed": "Tools used",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Copy failed"
   }
 }

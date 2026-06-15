@@ -29,6 +29,9 @@
           :class="msg.role === 'user' ? 'is-user' : 'is-assistant'"
         >
           <div class="ai-chat-bubble">{{ msg.content }}</div>
+          <ElButton link size="small" class="ai-chat-copy" @click="copyMessage(msg.content)">
+            {{ t('aiChat.copy') }}
+          </ElButton>
           <div v-if="msg.role === 'assistant' && toolsByIndex[index]?.length" class="ai-chat-tools">
             <span class="ai-chat-tools-label">{{ t('aiChat.toolsUsed') }}</span>
             <ElTag v-for="tool in toolsByIndex[index]" :key="tool" size="small" type="info">
@@ -61,8 +64,9 @@
 
 <script setup lang="ts">
   import { useI18n } from 'vue-i18n'
-  import { ElButton, ElDrawer, ElInput, ElTag } from 'element-plus'
+  import { ElButton, ElDrawer, ElInput, ElMessage, ElTag } from 'element-plus'
   import { sendAiChat, type AiChatMessage } from '@/api/ai'
+  import { copyToClipboard } from '@/utils/clipboard'
 
   defineOptions({ name: 'ArtAiChat' })
 
@@ -121,6 +125,14 @@
     if ((e as KeyboardEvent).shiftKey) return
     e.preventDefault()
     send()
+  }
+
+  const copyMessage = async (content: string): Promise<void> => {
+    if (await copyToClipboard(content)) {
+      ElMessage.success(t('aiChat.copied'))
+    } else {
+      ElMessage.error(t('aiChat.copyFailed'))
+    }
   }
 
   const clearConversation = (): void => {
@@ -182,6 +194,10 @@
 
   .ai-chat-thinking {
     @apply text-g-500;
+  }
+
+  .ai-chat-copy {
+    @apply h-auto p-0 mt-0.5 text-xs text-g-500;
   }
 
   .ai-chat-tools {
