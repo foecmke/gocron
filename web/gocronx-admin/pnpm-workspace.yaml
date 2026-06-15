@@ -14,3 +14,5 @@ overrides:
   flatted: '>=3.4.2'
   fast-uri: '^3.1.2'
   defu: '>=6.1.5'
+  # esbuild <0.28.1：两条 advisory（dev server 任意文件读取 / 二进制完整性校验缺失）
+  esbuild: '>=0.28.1'
