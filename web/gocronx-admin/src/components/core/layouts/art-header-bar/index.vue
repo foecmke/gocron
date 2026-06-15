@@ -124,6 +124,9 @@
           :icon="isDark ? 'ri:sun-fill' : 'ri:moon-line'"
         />
 
+        <!-- AI 运维助手 -->
+        <ArtAiChat />
+
         <!-- 用户头像、菜单 -->
         <ArtUserMenu />
       </div>
@@ -149,6 +152,7 @@
   import { useCommon } from '@/hooks/core/useCommon'
   import { useHeaderBar } from '@/hooks/core/useHeaderBar'
   import ArtUserMenu from './widget/ArtUserMenu.vue'
+  import ArtAiChat from '@/components/core/widget/art-ai-chat/index.vue'
 
   defineOptions({ name: 'ArtHeaderBar' })
 

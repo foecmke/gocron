@@ -84,3 +84,67 @@ func TestChat_EmptyChoices(t *testing.T) {
 		t.Fatalf("expected ErrEmptyResponse, got %v", err)
 	}
 }
+
+func TestChatWithTools_ToolCallResponse(t *testing.T) {
+	var gotTools int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer sk-test" {
+			t.Errorf("auth header = %q", got)
+		}
+		body, _ := io.ReadAll(r.Body)
+		var req toolChatRequest
+		_ = json.Unmarshal(body, &req)
+		gotTools = len(req.Tools)
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"",` +
+			`"tool_calls":[{"id":"call_1","type":"function","function":{"name":"query_task_logs","arguments":"{\"status\":0}"}}]}}]}`))
+	}))
+	defer srv.Close()
+
+	tools := []Tool{{Type: "function", Function: ToolFunction{Name: "query_task_logs", Parameters: json.RawMessage(`{"type":"object"}`)}}}
+	c := New(srv.URL, "sk-test", "gpt-test")
+	msg, err := c.ChatWithTools(context.Background(), []Message{{Role: "user", Content: "what failed?"}}, tools)
+	if err != nil {
+		t.Fatalf("ChatWithTools: %v", err)
+	}
+	if gotTools != 1 {
+		t.Errorf("expected 1 tool in request body, got %d", gotTools)
+	}
+	if len(msg.ToolCalls) != 1 {
+		t.Fatalf("expected 1 tool call, got %d", len(msg.ToolCalls))
+	}
+	tc := msg.ToolCalls[0]
+	if tc.ID != "call_1" || tc.Function.Name != "query_task_logs" || tc.Function.Arguments != `{"status":0}` {
+		t.Errorf("unexpected tool call: %+v", tc)
+	}
+}
+
+func TestChatWithTools_ContentResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"all good"}}]}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "sk-test", "gpt-test")
+	msg, err := c.ChatWithTools(context.Background(), []Message{{Role: "user", Content: "status?"}}, nil)
+	if err != nil {
+		t.Fatalf("ChatWithTools: %v", err)
+	}
+	if len(msg.ToolCalls) != 0 {
+		t.Errorf("expected no tool calls, got %d", len(msg.ToolCalls))
+	}
+	if msg.Content != "all good" {
+		t.Errorf("content = %q", msg.Content)
+	}
+}
+
+func TestChatWithTools_EmptyChoices(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"choices":[]}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "k", "m")
+	if _, err := c.ChatWithTools(context.Background(), []Message{{Role: "user", Content: "x"}}, nil); err != ErrEmptyResponse {
+		t.Fatalf("expected ErrEmptyResponse, got %v", err)
+	}
+}

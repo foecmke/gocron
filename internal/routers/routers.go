@@ -19,6 +19,7 @@ import (
 	"github.com/gocronx-team/gocron/internal/modules/logger"
 	"github.com/gocronx-team/gocron/internal/modules/utils"
 	"github.com/gocronx-team/gocron/internal/routers/agent"
+	"github.com/gocronx-team/gocron/internal/routers/ai"
 	"github.com/gocronx-team/gocron/internal/routers/audit"
 	"github.com/gocronx-team/gocron/internal/routers/host"
 	"github.com/gocronx-team/gocron/internal/routers/install"
@@ -173,6 +174,12 @@ func Register(r *gin.Engine) {
 	statisticsGroup := api.Group("/statistics")
 	{
 		statisticsGroup.GET("/overview", statistics.Overview)
+	}
+
+	// AI 运维对话（登录用户可用，走 userAuth；非管理员经 urlAuth allowPaths 放行）
+	aiGroup := api.Group("/ai")
+	{
+		aiGroup.POST("/chat", ai.Chat)
 	}
 
 	// 审计日志（需认证）
@@ -427,6 +434,7 @@ func urlAuth(c *gin.Context) {
 		"/api/template",
 		"/api/template/categories",
 		"/api/statistics/overview",
+		"/api/ai/chat",
 		"/api/agent/install.sh",
 		"/api/agent/register",
 		"/api/agent/download",

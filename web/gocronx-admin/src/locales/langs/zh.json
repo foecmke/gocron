@@ -802,5 +802,14 @@
     "close": "关闭",
     "emptyInput": "请先输入描述",
     "disclaimer": "以上内容由 AI 生成，仅供参考，请结合实际部署环境判断。"
+  },
+  "aiChat": {
+    "title": "AI 运维助手",
+    "placeholder": "输入问题，Enter 发送，Shift+Enter 换行",
+    "send": "发送",
+    "clear": "清空对话",
+    "empty": "开始和 AI 运维助手对话吧",
+    "thinking": "正在思考…",
+    "toolsUsed": "已调用工具"
   }
 }

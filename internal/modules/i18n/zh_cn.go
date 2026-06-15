@@ -69,6 +69,7 @@ var zhCN = map[string]string{
 	"llm_call_failed":                        "调用 AI 模型失败，请检查配置或稍后重试",
 	"nl_to_cron_failed":                      "无法理解该描述，请换一种说法",
 	"nl_to_cron_invalid":                     "AI 生成的表达式无效，请换一种说法重试",
+	"ai_chat_failed":                         "AI 对话失败，请检查配置或稍后重试",
 	"log_not_found":                          "日志不存在",
 	"log_no_result":                          "该日志没有可供诊断的输出内容",
 	"select_at_least_one_receiver":           "至少选择一个通知接收者",

@@ -72,3 +72,23 @@ export function diagnoseLog(id: number) {
     headers: langHeader()
   })
 }
+
+// ── Ops chat ────────────────────────────────────────────────────────────────
+
+export type AiChatMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+/**
+ * POST /api/ai/chat — send the full conversation history; the last entry is the
+ * new user message. Returns the assistant reply plus the tools it invoked.
+ */
+export function sendAiChat(messages: AiChatMessage[]) {
+  return request.post<{ reply: string; tools_used: string[] }>({
+    url: '/api/ai/chat',
+    data: { messages },
+    timeout: AI_TIMEOUT,
+    headers: langHeader()
+  })
+}
