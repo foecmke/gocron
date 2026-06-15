@@ -1,10 +1,12 @@
 // Package ai 提供服务端的智能体对话端点：在服务端跑一个 LLM 工具调用循环，
-// 复用既有 MCP 工具回答运维问题（哪些任务失败了、某任务详情、主机列表等）。
+// 复用既有 MCP 工具回答运维问题（哪些任务失败了、某任务详情、主机列表等），
+// 并以 SSE 流式把内容增量、工具调用、工具结果推送给前端。
 package ai
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -25,9 +27,11 @@ const (
 // systemPrompt 约束模型角色与行为：用提供的工具回答运维问题，简洁，不编造任务数据。
 const systemPrompt = `You are the AI ops assistant embedded in gocron, a distributed cron task scheduler.
 Users ask operational questions about scheduled tasks, their execution logs, and the hosts that run them.
-Use the provided tools to look up real data before answering — never fabricate task names, ids, statuses, or log contents.
-For task-log execution status: 0 = failed, 1 = running, 2 = success (finished), 3 = cancelled.
-Be concise and answer in the same language the user used.`
+
+Operating principles:
+- Evidence first: look up real data with the provided tools before drawing conclusions — never fabricate task names, ids, statuses, or log contents.
+- For task-log execution status: 0 = failed, 1 = running, 2 = success (finished), 3 = cancelled.
+- Be concise and answer in the same language the user used.`
 
 // ChatMessage 是请求中的一条对话消息。
 type ChatMessage struct {
@@ -39,9 +43,22 @@ type chatRequest struct {
 	Messages []ChatMessage `json:"messages"`
 }
 
-// Chat 运行一个有界的 LLM 工具调用循环并返回最终回复。
-// 响应数据：{ "reply": string, "tools_used": []string }，
-// tools_used 按工具实际被调用的顺序记录（含重复），不去重。
+// sseEvent 是发送给前端的一条 SSE 事件。
+type sseEvent struct {
+	event string
+	data  any
+}
+
+// Chat 运行一个有界的 LLM 工具调用循环，并以 SSE 流式推送结果。
+// 事件契约：
+//   - message      {"content": "<delta>"}                       内容增量
+//   - tool_call    {"id","name","arguments"}                    模型决定调用工具
+//   - tool_result  {"id","name","ok": true|false}               工具执行完成（不回传结果体）
+//   - error        {"message": "<msg>"}                          运行期错误
+//   - done         {}                                           始终最后发送
+//
+// 请求校验在写入 SSE 头之前完成，校验失败/未配置时以普通 JSON 错误响应返回，
+// 与应用其余接口保持一致。
 func Chat(c *gin.Context) {
 	var req chatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -59,6 +76,20 @@ func Chat(c *gin.Context) {
 		return
 	}
 
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+
+	sendEvent := func(ev sseEvent) {
+		payload, err := json.Marshal(ev.data)
+		if err != nil {
+			payload = []byte(`{}`)
+		}
+		_, _ = fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", ev.event, payload)
+		c.Writer.Flush()
+	}
+
 	messages := buildMessages(req.Messages)
 	isAdmin := user.IsAdmin(c)
 	tools := mcp.AgentToolDefs()
@@ -66,67 +97,69 @@ func Chat(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), chatTimeout)
 	defer cancel()
 
-	toolsUsed := make([]string, 0)
-	lastContent := ""
+	defer sendEvent(sseEvent{event: "done", data: map[string]any{}})
 
 	for i := 0; i < maxIterations; i++ {
-		msg, err := client.ChatWithTools(ctx, messages, tools)
+		msg, err := client.ChatStream(ctx, messages, tools, func(delta string) {
+			sendEvent(sseEvent{event: "message", data: map[string]string{"content": delta}})
+		})
 		if err != nil {
 			logger.Errorf("AI对话#调用LLM失败#%s", err)
-			base.RespondError(c, i18n.T(c, "ai_chat_failed"))
+			sendEvent(sseEvent{event: "error", data: map[string]string{"message": i18n.T(c, "ai_chat_failed")}})
 			return
 		}
 
+		// 没有工具调用：模型已通过 message 事件流出终答。
 		if len(msg.ToolCalls) == 0 {
-			base.RespondSuccess(c, "", gin.H{
-				"reply":      msg.Content,
-				"tools_used": toolsUsed,
-			})
 			return
 		}
 
-		lastContent = msg.Content
 		messages = append(messages, msg)
 		for _, tc := range msg.ToolCalls {
-			toolsUsed = append(toolsUsed, tc.Function.Name)
+			sendEvent(sseEvent{event: "tool_call", data: map[string]string{
+				"id":        tc.ID,
+				"name":      tc.Function.Name,
+				"arguments": tc.Function.Arguments,
+			}})
+
+			result, terr := mcp.CallTool(tc.Function.Name, []byte(tc.Function.Arguments), isAdmin)
+			sendEvent(sseEvent{event: "tool_result", data: map[string]any{
+				"id":   tc.ID,
+				"name": tc.Function.Name,
+				"ok":   terr == nil,
+			}})
+
 			messages = append(messages, llm.Message{
 				Role:       "tool",
 				ToolCallID: tc.ID,
-				Content:    callTool(tc.Function.Name, tc.Function.Arguments, isAdmin),
+				Content:    toolResultContent(result, terr),
 			})
 		}
 	}
 
-	// 迭代用尽仍未给出终答：尽力返回最后一段助手内容，否则报错。
-	if strings.TrimSpace(lastContent) != "" {
-		base.RespondSuccess(c, "", gin.H{
-			"reply":      lastContent,
-			"tools_used": toolsUsed,
-		})
-		return
-	}
-	base.RespondError(c, i18n.T(c, "ai_chat_failed"))
+	// 迭代用尽仍未给出终答。
+	sendEvent(sseEvent{event: "error", data: map[string]string{"message": i18n.T(c, "ai_chat_failed")}})
 }
 
-// buildMessages 在用户消息前注入系统提示词。
+// buildMessages 在用户消息前注入系统提示词（含当前服务器时间）。
 func buildMessages(in []ChatMessage) []llm.Message {
+	prompt := systemPrompt + fmt.Sprintf("\n\nCurrent server time: %s", time.Now().Format("2006-01-02 15:04:05 MST"))
 	out := make([]llm.Message, 0, len(in)+1)
-	out = append(out, llm.Message{Role: "system", Content: systemPrompt})
+	out = append(out, llm.Message{Role: "system", Content: prompt})
 	for _, m := range in {
 		out = append(out, llm.Message{Role: m.Role, Content: m.Content})
 	}
 	return out
 }
 
-// callTool 执行一次工具调用，把结果或错误信息序列化为字符串作为 tool 消息内容。
-func callTool(name, args string, isAdmin bool) string {
-	result, err := mcp.CallTool(name, []byte(args), isAdmin)
+// toolResultContent 把工具结果或错误信息序列化为 tool 消息内容。
+func toolResultContent(result any, err error) string {
 	if err != nil {
 		return err.Error()
 	}
-	encoded, err := json.Marshal(result)
-	if err != nil {
-		return err.Error()
+	encoded, mErr := json.Marshal(result)
+	if mErr != nil {
+		return mErr.Error()
 	}
 	return string(encoded)
 }

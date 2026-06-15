@@ -810,7 +810,10 @@
     "clear": "Clear",
     "empty": "Start a conversation with the AI ops assistant",
     "thinking": "Thinking…",
-    "toolsUsed": "Tools used",
+    "calling": "Calling {name}",
+    "toolDone": "{name} done",
+    "toolFailed": "{name} failed",
+    "failed": "Something went wrong, please retry",
     "copy": "Copy",
     "copied": "Copied",
     "copyFailed": "Copy failed"

@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bufio"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -46,14 +47,12 @@ func enableLLM(t *testing.T, baseURL string) {
 	}
 }
 
-func doChat(r *gin.Engine, body string) (int, map[string]any) {
+func doChat(r *gin.Engine, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	var env map[string]any
-	_ = json.Unmarshal(w.Body.Bytes(), &env)
-	return w.Code, env
+	return w
 }
 
 func newRouter() *gin.Engine {
@@ -62,43 +61,114 @@ func newRouter() *gin.Engine {
 	return r
 }
 
-func TestChat_RunsToolLoopAndReplies(t *testing.T) {
+// sseFrame 是从 SSE 响应体中解析出的一条事件。
+type sseFrame struct {
+	event string
+	data  map[string]any
+}
+
+func parseSSE(t *testing.T, body string) []sseFrame {
+	t.Helper()
+	var frames []sseFrame
+	var cur sseFrame
+	scanner := bufio.NewScanner(strings.NewReader(body))
+	flush := func() {
+		if cur.event != "" {
+			frames = append(frames, cur)
+		}
+		cur = sseFrame{}
+	}
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch {
+		case strings.HasPrefix(line, "event: "):
+			cur.event = strings.TrimPrefix(line, "event: ")
+		case strings.HasPrefix(line, "data: "):
+			data := strings.TrimPrefix(line, "data: ")
+			m := map[string]any{}
+			_ = json.Unmarshal([]byte(data), &m)
+			cur.data = m
+		case line == "":
+			flush()
+		}
+	}
+	flush()
+	return frames
+}
+
+func TestChat_StreamsToolLoopAndReplies(t *testing.T) {
 	defer setupDb(t)()
 	seedFailingLog(t)
 
 	var calls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n := atomic.AddInt32(&calls, 1)
+		w.Header().Set("Content-Type", "text/event-stream")
 		if n == 1 {
-			// 第一轮：请求调用 query_task_logs 工具
-			_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"",` +
-				`"tool_calls":[{"id":"c1","type":"function","function":{"name":"query_task_logs","arguments":"{\"status\":0}"}}]}}]}`))
+			// 第一轮：流式请求调用 query_task_logs 工具（参数跨分片）
+			_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"query_task_logs\"}}]}}]}\n\n")
+			_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"status\\\":0}\"}}]}}]}\n\n")
+			_, _ = io.WriteString(w, "data: [DONE]\n\n")
 			return
 		}
-		// 第二轮：收到 tool 结果后给出终答
+		// 第二轮：收到 tool 结果后流式给出终答
 		body, _ := io.ReadAll(r.Body)
 		if !strings.Contains(string(body), `"role":"tool"`) {
 			t.Errorf("expected tool result message in 2nd request, body=%s", body)
 		}
-		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"There was 1 failed task last night."}}]}`))
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"There was \"}}]}\n\n")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"1 failed task.\"}}]}\n\n")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
 	}))
 	defer srv.Close()
 	enableLLM(t, srv.URL)
 
-	code, env := doChat(newRouter(), `{"messages":[{"role":"user","content":"昨晚哪些任务失败了?"}]}`)
-	if code != http.StatusOK {
-		t.Fatalf("status = %d", code)
+	w := doChat(newRouter(), `{"messages":[{"role":"user","content":"昨晚哪些任务失败了?"}]}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
 	}
-	data, _ := env["data"].(map[string]any)
-	if data == nil {
-		t.Fatalf("missing data: %+v", env)
+	if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "text/event-stream") {
+		t.Fatalf("content-type = %q", ct)
 	}
-	if reply, _ := data["reply"].(string); !strings.Contains(reply, "failed task") {
-		t.Fatalf("unexpected reply: %v", data["reply"])
+	frames := parseSSE(t, w.Body.String())
+
+	var (
+		sawToolCall   bool
+		sawToolResult bool
+		sawDone       bool
+		reply         strings.Builder
+	)
+	for _, f := range frames {
+		switch f.event {
+		case "tool_call":
+			if f.data["name"] == "query_task_logs" {
+				sawToolCall = true
+			}
+		case "tool_result":
+			if f.data["name"] == "query_task_logs" && f.data["ok"] == true {
+				sawToolResult = true
+			}
+		case "message":
+			if s, ok := f.data["content"].(string); ok {
+				reply.WriteString(s)
+			}
+		case "done":
+			sawDone = true
+		case "error":
+			t.Fatalf("unexpected error event: %v", f.data)
+		}
 	}
-	used, _ := data["tools_used"].([]any)
-	if len(used) != 1 || used[0] != "query_task_logs" {
-		t.Fatalf("unexpected tools_used: %v", data["tools_used"])
+	if !sawToolCall {
+		t.Errorf("missing tool_call event for query_task_logs")
+	}
+	if !sawToolResult {
+		t.Errorf("missing tool_result event with ok=true")
+	}
+	if reply.String() != "There was 1 failed task." {
+		t.Errorf("assembled reply = %q", reply.String())
+	}
+	if !sawDone {
+		t.Errorf("missing trailing done event")
 	}
 	if atomic.LoadInt32(&calls) != 2 {
 		t.Fatalf("expected 2 llm calls, got %d", calls)
@@ -109,8 +179,13 @@ func TestChat_EmptyMessages(t *testing.T) {
 	defer setupDb(t)()
 	enableLLM(t, "http://unused.example")
 
-	_, env := doChat(newRouter(), `{"messages":[]}`)
-	if env["code"].(float64) == 0 {
+	w := doChat(newRouter(), `{"messages":[]}`)
+	if ct := w.Header().Get("Content-Type"); strings.Contains(ct, "text/event-stream") {
+		t.Fatalf("expected JSON error (no SSE), content-type = %q", ct)
+	}
+	var env map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &env)
+	if code, _ := env["code"].(float64); code == 0 {
 		t.Fatalf("expected failure code for empty messages, got %+v", env)
 	}
 }
@@ -119,8 +194,13 @@ func TestChat_LLMNotConfigured(t *testing.T) {
 	defer setupDb(t)()
 	// 不启用 LLM：FromSettings 返回 ErrNotConfigured
 
-	_, env := doChat(newRouter(), `{"messages":[{"role":"user","content":"hi"}]}`)
-	if env["code"].(float64) == 0 {
+	w := doChat(newRouter(), `{"messages":[{"role":"user","content":"hi"}]}`)
+	if ct := w.Header().Get("Content-Type"); strings.Contains(ct, "text/event-stream") {
+		t.Fatalf("expected JSON error (no SSE), content-type = %q", ct)
+	}
+	var env map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &env)
+	if code, _ := env["code"].(float64); code == 0 {
 		t.Fatalf("expected failure code when llm not configured, got %+v", env)
 	}
 	if msg, _ := env["message"].(string); !strings.Contains(msg, "AI") {

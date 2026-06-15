@@ -8,6 +8,7 @@
     direction="rtl"
     size="420px"
     class="ai-chat-drawer"
+    @close="cancelStream"
   >
     <template #header>
       <div class="ai-chat-header">
@@ -28,20 +29,33 @@
           class="ai-chat-row"
           :class="msg.role === 'user' ? 'is-user' : 'is-assistant'"
         >
-          <div class="ai-chat-bubble">{{ msg.content }}</div>
-          <ElButton link size="small" class="ai-chat-copy" @click="copyMessage(msg.content)">
+          <div class="ai-chat-bubble">
+            <template v-if="msg.content">{{ msg.content }}</template>
+            <span v-else-if="msg.role === 'assistant' && loading" class="ai-chat-thinking">
+              {{ t('aiChat.thinking') }}
+            </span>
+          </div>
+          <ElButton
+            v-if="msg.content"
+            link
+            size="small"
+            class="ai-chat-copy"
+            @click="copyMessage(msg.content)"
+          >
             {{ t('aiChat.copy') }}
           </ElButton>
           <div v-if="msg.role === 'assistant' && toolsByIndex[index]?.length" class="ai-chat-tools">
-            <span class="ai-chat-tools-label">{{ t('aiChat.toolsUsed') }}</span>
-            <ElTag v-for="tool in toolsByIndex[index]" :key="tool" size="small" type="info">
-              {{ tool }}
+            <ElTag
+              v-for="tool in toolsByIndex[index]"
+              :key="tool.id"
+              size="small"
+              :type="
+                tool.status === 'failed' ? 'danger' : tool.status === 'done' ? 'success' : 'info'
+              "
+            >
+              {{ toolLabel(tool) }}
             </ElTag>
           </div>
-        </div>
-
-        <div v-if="loading" class="ai-chat-row is-assistant">
-          <div class="ai-chat-bubble ai-chat-thinking">{{ t('aiChat.thinking') }}</div>
         </div>
       </div>
 
@@ -65,23 +79,34 @@
 <script setup lang="ts">
   import { useI18n } from 'vue-i18n'
   import { ElButton, ElDrawer, ElInput, ElMessage, ElTag } from 'element-plus'
-  import { sendAiChat, type AiChatMessage } from '@/api/ai'
+  import { streamAiChat, type AiChatMessage } from '@/api/ai'
   import { copyToClipboard } from '@/utils/clipboard'
 
   defineOptions({ name: 'ArtAiChat' })
 
   const { t } = useI18n()
 
+  // 单条消息内展示的工具调用 chip：running → done/failed。
+  type ToolChip = { id: string; name: string; status: 'running' | 'done' | 'failed' }
+
   const visible = ref(false)
   const loading = ref(false)
   const draft = ref('')
   const messages = ref<AiChatMessage[]>([])
   // 工具列表按 messages 下标存放，仅用于展示，不回传给后端。
-  const toolsByIndex = ref<Record<number, string[]>>({})
+  const toolsByIndex = ref<Record<number, ToolChip[]>>({})
   const listRef = ref<HTMLElement>()
+  // 进行中流的取消句柄，清空/关闭时用来中断，避免泄漏。
+  let controller: AbortController | null = null
 
   const openDrawer = (): void => {
     visible.value = true
+  }
+
+  const toolLabel = (tool: ToolChip): string => {
+    if (tool.status === 'failed') return t('aiChat.toolFailed', { name: tool.name })
+    if (tool.status === 'done') return t('aiChat.toolDone', { name: tool.name })
+    return t('aiChat.calling', { name: tool.name })
   }
 
   const scrollToBottom = (): void => {
@@ -91,31 +116,74 @@
   }
 
   /**
-   * 发送消息：推入用户消息后带全量历史调用接口，成功后追加助手回复。
-   * 失败时只复位 loading，错误提示交由 http 拦截器统一弹出。
+   * 发送消息：推入用户消息 + 一条空的助手消息（流式写入目标），带全量历史
+   * 调用流式接口。各事件回调直接改写最后一条助手消息的 content / 工具 chip，
+   * 触发响应式更新实现逐字渲染。
    */
-  const send = async (): Promise<void> => {
+  const send = (): void => {
     const content = draft.value.trim()
     if (!content || loading.value) return
 
-    messages.value = [...messages.value, { role: 'user', content }]
+    messages.value = [
+      ...messages.value,
+      { role: 'user', content },
+      { role: 'assistant', content: '' }
+    ]
+    const assistantIndex = messages.value.length - 1
+    // 只把真正的对话历史（不含刚插入的空助手占位）传给后端。
+    const history = messages.value.slice(0, assistantIndex) as AiChatMessage[]
     draft.value = ''
     loading.value = true
     scrollToBottom()
 
-    try {
-      const res = await sendAiChat(messages.value)
-      const index = messages.value.length
-      messages.value = [...messages.value, { role: 'assistant', content: res.reply }]
-      if (res.tools_used?.length) {
-        toolsByIndex.value = { ...toolsByIndex.value, [index]: res.tools_used }
-      }
-    } catch {
-      // 错误已由 http 拦截器提示，这里仅复位状态。
-    } finally {
-      loading.value = false
-      scrollToBottom()
+    controller = new AbortController()
+    streamAiChat(
+      history,
+      {
+        onMessage: (delta) => {
+          const target = messages.value[assistantIndex]
+          if (target) target.content += delta
+          scrollToBottom()
+        },
+        onToolCall: (tcall) => {
+          const list = toolsByIndex.value[assistantIndex] ?? []
+          toolsByIndex.value = {
+            ...toolsByIndex.value,
+            [assistantIndex]: [...list, { id: tcall.id, name: tcall.name, status: 'running' }]
+          }
+          scrollToBottom()
+        },
+        onToolResult: (tres) => {
+          const list = toolsByIndex.value[assistantIndex] ?? []
+          toolsByIndex.value = {
+            ...toolsByIndex.value,
+            [assistantIndex]: list.map((chip) =>
+              chip.id === tres.id ? { ...chip, status: tres.ok ? 'done' : 'failed' } : chip
+            )
+          }
+        },
+        onError: (msg) => {
+          ElMessage.error(msg)
+          const target = messages.value[assistantIndex]
+          if (target && !target.content) target.content = t('aiChat.failed')
+          loading.value = false
+        },
+        onDone: () => {
+          loading.value = false
+          controller = null
+          scrollToBottom()
+        }
+      },
+      controller.signal
+    )
+  }
+
+  const cancelStream = (): void => {
+    if (controller) {
+      controller.abort()
+      controller = null
     }
+    loading.value = false
   }
 
   /**
@@ -136,9 +204,12 @@
   }
 
   const clearConversation = (): void => {
+    cancelStream()
     messages.value = []
     toolsByIndex.value = {}
   }
+
+  onBeforeUnmount(cancelStream)
 </script>
 
 <style scoped>

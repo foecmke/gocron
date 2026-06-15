@@ -148,3 +148,83 @@ func TestChatWithTools_EmptyChoices(t *testing.T) {
 		t.Fatalf("expected ErrEmptyResponse, got %v", err)
 	}
 }
+
+func TestChatStream_ContentOnly(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if !strings.Contains(string(body), `"stream":true`) {
+			t.Errorf("expected stream:true in body, got %s", body)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\n")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\", \"}}]}\n\n")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"world\"}}]}\n\n")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	var deltas []string
+	c := New(srv.URL, "k", "m")
+	msg, err := c.ChatStream(context.Background(), []Message{{Role: "user", Content: "hi"}}, nil, func(d string) {
+		deltas = append(deltas, d)
+	})
+	if err != nil {
+		t.Fatalf("ChatStream: %v", err)
+	}
+	if msg.Content != "Hello, world" {
+		t.Fatalf("content = %q", msg.Content)
+	}
+	if len(deltas) != 3 || deltas[0] != "Hello" || deltas[1] != ", " || deltas[2] != "world" {
+		t.Fatalf("onContent deltas = %v", deltas)
+	}
+	if len(msg.ToolCalls) != 0 {
+		t.Fatalf("unexpected tool calls: %+v", msg.ToolCalls)
+	}
+}
+
+func TestChatStream_ToolCallSplitAcrossChunks(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"query_task_logs\"}}]}}]}\n\n")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"sta\"}}]}}]}\n\n")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"tus\\\":0}\"}}]}}]}\n\n")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "k", "m")
+	msg, err := c.ChatStream(context.Background(), []Message{{Role: "user", Content: "x"}}, nil, nil)
+	if err != nil {
+		t.Fatalf("ChatStream: %v", err)
+	}
+	if len(msg.ToolCalls) != 1 {
+		t.Fatalf("expected 1 tool call, got %d: %+v", len(msg.ToolCalls), msg.ToolCalls)
+	}
+	tc := msg.ToolCalls[0]
+	if tc.ID != "call_1" {
+		t.Errorf("id = %q", tc.ID)
+	}
+	if tc.Function.Name != "query_task_logs" {
+		t.Errorf("name = %q", tc.Function.Name)
+	}
+	if tc.Function.Arguments != `{"status":0}` {
+		t.Errorf("arguments = %q", tc.Function.Arguments)
+	}
+}
+
+func TestChatStream_Non200(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, `{"error":{"message":"boom"}}`)
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "k", "m")
+	_, err := c.ChatStream(context.Background(), []Message{{Role: "user", Content: "x"}}, nil, nil)
+	if err == nil {
+		t.Fatal("expected error on non-200")
+	}
+	if !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("expected error to contain upstream message, got %v", err)
+	}
+}

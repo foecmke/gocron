@@ -3,6 +3,7 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -216,4 +218,142 @@ func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []
 		return Message{}, ErrEmptyResponse
 	}
 	return parsed.Choices[0].Message, nil
+}
+
+type streamChatRequest struct {
+	Model       string    `json:"model"`
+	Messages    []Message `json:"messages"`
+	Tools       []Tool    `json:"tools,omitempty"`
+	Temperature float64   `json:"temperature"`
+	Stream      bool      `json:"stream"`
+}
+
+// streamChunk 是 OpenAI 兼容流式分片（SSE data 行）的结构。
+type streamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content   string `json:"content"`
+			ToolCalls []struct {
+				Index    int    `json:"index"`
+				ID       string `json:"id"`
+				Type     string `json:"type"`
+				Function struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				} `json:"function"`
+			} `json:"tool_calls"`
+		} `json:"delta"`
+		FinishReason string `json:"finish_reason"`
+	} `json:"choices"`
+}
+
+// streamScannerBuffer 是扫描器的最大单行缓冲（部分模型一行 data 可能很长）。
+const streamScannerBuffer = 1 << 20 // 1MB
+
+// ChatStream 发送一次带工具定义的流式对话，按 SSE 分片累积内容与工具调用。
+// 每收到一段非空 content 增量即回调 onContent（onContent 为 nil 时跳过）。
+// 返回的 Message 含累积的 Content 与按 index 组装的 ToolCalls，供调用方驱动工具循环。
+// HTTP 状态非 200 时先读取响应体并返回错误，不进入流式解析。
+func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Tool, onContent func(delta string)) (Message, error) {
+	reqBody := streamChatRequest{
+		Model:       c.model,
+		Messages:    messages,
+		Tools:       tools,
+		Temperature: 0.2,
+		Stream:      true,
+	}
+	payload, err := json.Marshal(reqBody)
+	if err != nil {
+		return Message{}, fmt.Errorf("marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(payload))
+	if err != nil {
+		return Message{}, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Accept", "text/event-stream")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return Message{}, fmt.Errorf("call llm: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		var parsed chatResponse
+		if json.Unmarshal(body, &parsed) == nil && parsed.Error != nil && parsed.Error.Message != "" {
+			return Message{}, fmt.Errorf("llm error (status %d): %s", resp.StatusCode, parsed.Error.Message)
+		}
+		return Message{}, fmt.Errorf("llm http status %d", resp.StatusCode)
+	}
+
+	var content strings.Builder
+	// toolCalls 按 index 累积：首个分片带 id+name，后续分片拼接 arguments。
+	toolCalls := make(map[int]*ToolCall)
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, 64*1024), streamScannerBuffer)
+	for scanner.Scan() {
+		if err := ctx.Err(); err != nil {
+			return Message{}, err
+		}
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "[DONE]" {
+			break
+		}
+		var chunk streamChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			// 跳过无法解析的分片（如保活注释），不中断整体流。
+			continue
+		}
+		for _, choice := range chunk.Choices {
+			if choice.Delta.Content != "" {
+				content.WriteString(choice.Delta.Content)
+				if onContent != nil {
+					onContent(choice.Delta.Content)
+				}
+			}
+			for _, tc := range choice.Delta.ToolCalls {
+				item, ok := toolCalls[tc.Index]
+				if !ok {
+					item = &ToolCall{Type: "function"}
+					toolCalls[tc.Index] = item
+				}
+				if tc.ID != "" {
+					item.ID = tc.ID
+				}
+				if tc.Type != "" {
+					item.Type = tc.Type
+				}
+				if tc.Function.Name != "" {
+					item.Function.Name = tc.Function.Name
+				}
+				if tc.Function.Arguments != "" {
+					item.Function.Arguments += tc.Function.Arguments
+				}
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return Message{}, fmt.Errorf("read stream: %w", err)
+	}
+
+	indexes := make([]int, 0, len(toolCalls))
+	for idx := range toolCalls {
+		indexes = append(indexes, idx)
+	}
+	sort.Ints(indexes)
+	assembled := make([]ToolCall, 0, len(indexes))
+	for _, idx := range indexes {
+		assembled = append(assembled, *toolCalls[idx])
+	}
+
+	return Message{Role: "assistant", Content: content.String(), ToolCalls: assembled}, nil
 }

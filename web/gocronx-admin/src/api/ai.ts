@@ -80,15 +80,149 @@ export type AiChatMessage = {
   content: string
 }
 
+export interface ToolCall {
+  id: string
+  name: string
+  arguments: string
+}
+
+export interface ToolResult {
+  id: string
+  name: string
+  ok: boolean
+}
+
+export interface StreamAiChatHandlers {
+  onMessage: (delta: string) => void
+  onToolCall: (t: ToolCall) => void
+  onToolResult: (t: ToolResult) => void
+  onError: (msg: string) => void
+  onDone: () => void
+}
+
 /**
- * POST /api/ai/chat — send the full conversation history; the last entry is the
- * new user message. Returns the assistant reply plus the tools it invoked.
+ * POST /api/ai/chat — stream the assistant reply via Server-Sent Events.
+ *
+ * 用原生 fetch + ReadableStream 读取 `text/event-stream`。每个事件形如
+ * `event: <type>\ndata: <json>\n\n`，我们按行解析并在空行处 flush 一个完整事件，
+ * 跨 chunk 的半截事件由 buffer 暂存，只有读到完整行才消费，避免 JSON 解析到一半。
+ *
+ * gocron 用 `Auth-Token` 头携带令牌（不是 Authorization: Bearer），值取自 user store。
  */
-export function sendAiChat(messages: AiChatMessage[]) {
-  return request.post<{ reply: string; tools_used: string[] }>({
-    url: '/api/ai/chat',
-    data: { messages },
-    timeout: AI_TIMEOUT,
-    headers: langHeader()
-  })
+export async function streamAiChat(
+  messages: AiChatMessage[],
+  handlers: StreamAiChatHandlers,
+  signal?: AbortSignal
+): Promise<void> {
+  let done = false
+  const finish = (): void => {
+    if (done) return
+    done = true
+    handlers.onDone()
+  }
+
+  let res: Response
+  try {
+    res = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Auth-Token': useUserStore().accessToken,
+        'Accept-Language': useUserStore().language
+      },
+      body: JSON.stringify({ messages }),
+      signal
+    })
+  } catch (e) {
+    if (signal?.aborted) {
+      finish()
+      return
+    }
+    handlers.onError((e as Error)?.message || 'network error')
+    finish()
+    return
+  }
+
+  if (!res.ok || !res.body) {
+    handlers.onError(`HTTP ${res.status}`)
+    finish()
+    return
+  }
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let eventType = ''
+  let dataLines: string[] = []
+
+  const dispatch = (): void => {
+    if (!eventType || dataLines.length === 0) {
+      eventType = ''
+      dataLines = []
+      return
+    }
+    let data: Record<string, unknown> = {}
+    try {
+      data = JSON.parse(dataLines.join('\n'))
+    } catch {
+      eventType = ''
+      dataLines = []
+      return
+    }
+    switch (eventType) {
+      case 'message':
+        handlers.onMessage(String(data.content ?? ''))
+        break
+      case 'tool_call':
+        handlers.onToolCall({
+          id: String(data.id ?? ''),
+          name: String(data.name ?? ''),
+          arguments: String(data.arguments ?? '')
+        })
+        break
+      case 'tool_result':
+        handlers.onToolResult({
+          id: String(data.id ?? ''),
+          name: String(data.name ?? ''),
+          ok: data.ok === true
+        })
+        break
+      case 'error':
+        handlers.onError(String(data.message ?? 'error'))
+        break
+      case 'done':
+        finish()
+        break
+    }
+    eventType = ''
+    dataLines = []
+  }
+
+  const processLine = (line: string): void => {
+    if (line.startsWith('event:')) {
+      eventType = line.slice(6).trim()
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).replace(/^ /, ''))
+    } else if (line === '') {
+      dispatch()
+    }
+  }
+
+  try {
+    for (;;) {
+      const { done: streamDone, value } = await reader.read()
+      if (streamDone) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) processLine(line.replace(/\r$/, ''))
+    }
+    buffer += decoder.decode()
+    for (const line of buffer.split('\n')) processLine(line.replace(/\r$/, ''))
+    dispatch()
+  } catch (e) {
+    if (!signal?.aborted) handlers.onError((e as Error)?.message || 'stream error')
+  } finally {
+    finish()
+  }
 }

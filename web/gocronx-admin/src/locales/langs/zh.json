@@ -810,7 +810,10 @@
     "clear": "清空对话",
     "empty": "开始和 AI 运维助手对话吧",
     "thinking": "正在思考…",
-    "toolsUsed": "已调用工具",
+    "calling": "正在调用 {name}",
+    "toolDone": "{name} 完成",
+    "toolFailed": "{name} 失败",
+    "failed": "出错了，请重试",
     "copy": "复制",
     "copied": "已复制",
     "copyFailed": "复制失败"
