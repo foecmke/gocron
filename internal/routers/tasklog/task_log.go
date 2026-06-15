@@ -4,6 +4,7 @@ package tasklog
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gocronx-team/gocron/internal/models"
@@ -118,6 +119,7 @@ func parseQueryParams(c *gin.Context) models.CommonMap {
 	status, _ := strconv.Atoi(c.Query("status"))
 	params["TaskId"] = taskId
 	params["Protocol"] = protocol
+	params["Keyword"] = strings.TrimSpace(c.Query("keyword"))
 	if status >= 0 {
 		status -= 1
 	}

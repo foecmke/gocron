@@ -24,6 +24,67 @@ func setupTaskLogTestDb(t *testing.T) func() {
 	}
 }
 
+func TestList_KeywordFilter(t *testing.T) {
+	cleanup := setupTaskLogTestDb(t)
+	defer cleanup()
+
+	seed := []TaskLog{
+		{TaskId: 1, Name: "新增用户任务", Spec: "* * * * *", Command: "echo 1", Result: "ok"},
+		{TaskId: 2, Name: "清理日志", Spec: "* * * * *", Command: "echo 2", Result: "build goland project"},
+		{TaskId: 3, Name: "新增订单同步", Spec: "* * * * *", Command: "echo 3", Result: "ok"},
+	}
+	for i := range seed {
+		if _, err := seed[i].Create(); err != nil {
+			t.Fatalf("create log: %v", err)
+		}
+	}
+
+	// 关键字命中任务名（两条）
+	byName, err := new(TaskLog).List(CommonMap{"Keyword": "新增"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(byName) != 2 {
+		t.Fatalf("expected 2 logs matching name 新增, got %d", len(byName))
+	}
+
+	// 关键字命中执行输出（仅任务2的 result 含 goland，name 不含）
+	byResult, err := new(TaskLog).List(CommonMap{"Keyword": "goland"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(byResult) != 1 || byResult[0].TaskId != 2 {
+		t.Fatalf("expected 1 log matching result goland (task 2), got %+v", byResult)
+	}
+
+	// 空关键字不过滤
+	all, err := new(TaskLog).List(CommonMap{"Keyword": ""})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("empty keyword should not filter, got %d", len(all))
+	}
+
+	// 无匹配
+	none, err := new(TaskLog).List(CommonMap{"Keyword": "不存在的关键字"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("expected 0 matches, got %d", len(none))
+	}
+
+	// 关键字 + 任务ID 组合过滤（验证 OR 条件被正确括组，不会与 task_id 串味）
+	combo, err := new(TaskLog).List(CommonMap{"Keyword": "新增", "TaskId": 3})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(combo) != 1 || combo[0].TaskId != 3 {
+		t.Fatalf("combined filter failed: %+v", combo)
+	}
+}
+
 func TestClearByTaskId_Normal(t *testing.T) {
 	cleanup := setupTaskLogTestDb(t)
 	defer cleanup()

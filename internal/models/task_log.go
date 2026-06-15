@@ -207,6 +207,13 @@ func (taskLog *TaskLog) parseWhere(query *gorm.DB, params CommonMap) {
 	if ok && status.(int) > -1 {
 		query.Where("status = ?", status)
 	}
+	// 关键字模糊搜索：匹配任务名或执行输出
+	// 参数化查询，% 通配在值侧拼接，无 SQL 注入风险
+	keyword, ok := params["Keyword"]
+	if ok && keyword.(string) != "" {
+		like := "%" + keyword.(string) + "%"
+		query.Where("name LIKE ? OR result LIKE ?", like, like)
+	}
 }
 
 // 统计相关方法

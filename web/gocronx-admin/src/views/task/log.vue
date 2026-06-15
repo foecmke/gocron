@@ -113,6 +113,7 @@
 
   // ── Filter state ──────────────────────────────────────────────────────────
   const filterForm = ref<Record<string, any>>({
+    keyword: '',
     task_id: '' as string | number,
     host_id: '' as string | number,
     status: '',
@@ -141,6 +142,15 @@
 
   // ── Filter items config ───────────────────────────────────────────────────
   const filterItems = computed(() => [
+    {
+      label: t('task.log.keyword'),
+      key: 'keyword',
+      type: 'input',
+      props: {
+        placeholder: t('task.log.keywordPlaceholder'),
+        clearable: true
+      }
+    },
     {
       label: t('task.name'),
       key: 'task_id',
@@ -304,6 +314,7 @@
       apiParams: {
         page: 1,
         page_size: 20,
+        keyword: '',
         task_id: '',
         protocol: '',
         status: '',
@@ -435,6 +446,7 @@
     const [startDate, endDate] = Array.isArray(dr) && dr.length === 2 ? dr : ['', '']
 
     Object.assign(searchParams, {
+      keyword: (filterForm.value.keyword || '').trim(),
       task_id: filterForm.value.task_id || '',
       host_id: filterForm.value.host_id || '',
       status: filterForm.value.status || '',
@@ -447,7 +459,14 @@
   }
 
   function handleReset() {
-    filterForm.value = { task_id: '', host_id: '', status: '', protocol: '', date_range: [] }
+    filterForm.value = {
+      keyword: '',
+      task_id: '',
+      host_id: '',
+      status: '',
+      protocol: '',
+      date_range: []
+    }
     resetSearchParams()
   }
 

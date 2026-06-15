@@ -518,6 +518,8 @@
     "selectNotifyReceiver": "Please select at least one notification receiver",
     "log": {
       "title": "Task Execution Log",
+      "keyword": "Keyword",
+      "keywordPlaceholder": "Search by task name or output",
       "colTaskName": "Task Name",
       "colHost": "Host",
       "colProtocol": "Protocol",

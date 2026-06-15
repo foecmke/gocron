@@ -518,6 +518,8 @@
     "selectNotifyReceiver": "请至少选择一个通知接收人",
     "log": {
       "title": "任务执行日志",
+      "keyword": "关键字",
+      "keywordPlaceholder": "按任务名称或执行输出模糊搜索",
       "colTaskName": "任务名称",
       "colHost": "执行节点",
       "colProtocol": "协议",

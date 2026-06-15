@@ -5,6 +5,7 @@ import request from '@/utils/http'
 export interface TaskLogListParams {
   page: number
   page_size: number
+  keyword?: string
   task_id?: number | string
   protocol?: number | string
   status?: number | string
