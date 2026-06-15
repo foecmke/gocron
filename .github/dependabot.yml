@@ -15,6 +15,21 @@ updates:
     groups:
       npm-deps:
         patterns: ["*"]
+    # 前端是 art-design-pro 模板项目，框架/构建/lint 工具链需要协同迁移，
+    # 不适合 dependabot 逐依赖自动升级（升级后会破坏 build / eslint 解析）。
+    ignore:
+      # 一律不收大版本（vite / vue-router / vue-i18n / typescript / vue-tsc /
+      # @vueuse/core / eslint / stylelint / unplugin-* 等大版本都需改代码迁移）
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # 以下即便小版本升级也会在当前代码下编译/lint 失败，迁移前整体冻结：
+      - dependency-name: "element-plus" # 2.12+ 改了 ElTableColumn 插槽 row 类型
+      - dependency-name: "eslint"
+      - dependency-name: "eslint-plugin-vue"
+      - dependency-name: "typescript-eslint"
+      - dependency-name: "@typescript-eslint/*"
+      - dependency-name: "prettier"
+      - dependency-name: "eslint-plugin-prettier"
 
   - package-ecosystem: npm
     directory: /
@@ -28,6 +43,10 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # 构建镜像锁定在当前 LTS（node:24），不自动跳到非 LTS 的奇数大版本（如 25）
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
