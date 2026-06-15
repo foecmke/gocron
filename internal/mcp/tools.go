@@ -1,6 +1,9 @@
 package mcp
 
 import (
+	"strings"
+	"time"
+
 	"github.com/gocronx-team/gocron/internal/models"
 	"github.com/gocronx-team/gocron/internal/service"
 )
@@ -73,10 +76,13 @@ func getTask(in getTaskInput) (models.Task, error) {
 // ── query_task_logs ───────────────────────────────────────────────────────────
 
 type queryTaskLogsInput struct {
-	TaskId   int  `json:"task_id,omitempty" jsonschema:"按任务 ID 过滤，省略则返回全部任务的日志"`
-	Status   *int `json:"status,omitempty" jsonschema:"按执行状态过滤，0 表示失败，1 表示成功，2 表示执行中"`
-	Page     int  `json:"page,omitempty" jsonschema:"页码，从 1 开始，默认 1"`
-	PageSize int  `json:"page_size,omitempty" jsonschema:"每页数量，默认 20，最大 100"`
+	TaskId    int    `json:"task_id,omitempty" jsonschema:"按任务 ID 过滤，省略则返回全部任务的日志"`
+	Status    *int   `json:"status,omitempty" jsonschema:"按执行状态过滤，0 表示失败，1 表示执行中，2 表示成功（已完成），3 表示取消"`
+	Keyword   string `json:"keyword,omitempty" jsonschema:"按任务名或执行输出模糊搜索"`
+	StartTime string `json:"start_time,omitempty" jsonschema:"只返回该时间(含)之后的日志，格式 2006-01-02 15:04:05 或 2006-01-02，按服务器时区解析"`
+	EndTime   string `json:"end_time,omitempty" jsonschema:"只返回该时间(不含)之前的日志，格式同 start_time"`
+	Page      int    `json:"page,omitempty" jsonschema:"页码，从 1 开始，默认 1"`
+	PageSize  int    `json:"page_size,omitempty" jsonschema:"每页数量，默认 20，最大 100"`
 }
 
 type queryTaskLogsOutput struct {
@@ -94,6 +100,15 @@ func queryTaskLogs(in queryTaskLogsInput) (queryTaskLogsOutput, error) {
 	}
 	if in.Status != nil {
 		params["Status"] = *in.Status
+	}
+	if in.Keyword != "" {
+		params["Keyword"] = in.Keyword
+	}
+	if t, ok := parseTimeArg(in.StartTime); ok {
+		params["StartTime"] = t
+	}
+	if t, ok := parseTimeArg(in.EndTime); ok {
+		params["EndTime"] = t
 	}
 
 	logModel := new(models.TaskLog)
@@ -163,4 +178,20 @@ func normalizePageSize(size int) int {
 		return maxPageSize
 	}
 	return size
+}
+
+// parseTimeArg 解析模型传入的时间字符串，按服务器本地时区处理（日志 start_time 为本地时间）。
+// 支持 RFC3339、"2006-01-02 15:04:05"、"2006-01-02" 三种格式；无法解析时返回 false 表示不过滤。
+func parseTimeArg(s string) (time.Time, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, false
+	}
+	layouts := []string{time.RFC3339, "2006-01-02 15:04:05", "2006-01-02"}
+	for _, layout := range layouts {
+		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
 }

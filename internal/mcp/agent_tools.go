@@ -28,11 +28,14 @@ func AgentToolDefs() []llm.Tool {
 			},
 			"required": ["id"]
 		}`),
-		tool("query_task_logs", "Query task execution logs with optional task id / execution status filters and pagination.", `{
+		tool("query_task_logs", "Query task execution logs, filterable by task id, execution status, keyword, and time range.", `{
 			"type": "object",
 			"properties": {
 				"task_id": {"type": "integer", "description": "Filter by task id; omit for all tasks"},
 				"status": {"type": "integer", "description": "Filter by execution status: 0 failed, 1 running, 2 success (finished), 3 cancelled"},
+				"keyword": {"type": "string", "description": "Fuzzy match in task name or execution output"},
+				"start_time": {"type": "string", "description": "Only logs at/after this time. Format '2006-01-02 15:04:05' or '2006-01-02' in server timezone. Use the current server time to compute ranges like 'last night'."},
+				"end_time": {"type": "string", "description": "Only logs strictly before this time. Same format as start_time."},
 				"page": {"type": "integer", "description": "Page number, starts at 1, default 1"},
 				"page_size": {"type": "integer", "description": "Items per page, default 20, max 100"}
 			}

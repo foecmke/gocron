@@ -2,6 +2,7 @@ package models
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ncruces/go-sqlite3/gormlite"
 	"gorm.io/gorm"
@@ -21,6 +22,53 @@ func setupTaskLogTestDb(t *testing.T) func() {
 	Db = db
 	return func() {
 		Db = originalDb
+	}
+}
+
+func TestList_TimeRangeFilter(t *testing.T) {
+	cleanup := setupTaskLogTestDb(t)
+	defer cleanup()
+
+	base := time.Date(2026, 6, 15, 12, 0, 0, 0, time.Local)
+	seed := []TaskLog{
+		{TaskId: 1, Name: "t1", Spec: "* * * * *", Command: "echo 1", Result: "ok", StartTime: LocalTime(base.Add(-2 * time.Hour))},
+		{TaskId: 2, Name: "t2", Spec: "* * * * *", Command: "echo 2", Result: "ok", StartTime: LocalTime(base.Add(-1 * time.Hour))},
+		{TaskId: 3, Name: "t3", Spec: "* * * * *", Command: "echo 3", Result: "ok", StartTime: LocalTime(base)},
+	}
+	for i := range seed {
+		if _, err := seed[i].Create(); err != nil {
+			t.Fatalf("create log: %v", err)
+		}
+	}
+
+	// StartTime 下界：含 90 分钟前之后 → 命中 t2、t3
+	after, err := new(TaskLog).List(CommonMap{"StartTime": base.Add(-90 * time.Minute)})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(after) != 2 {
+		t.Fatalf("StartTime filter expected 2, got %d", len(after))
+	}
+
+	// EndTime 上界：90 分钟前之前(不含) → 仅命中 t1
+	before, err := new(TaskLog).List(CommonMap{"EndTime": base.Add(-90 * time.Minute)})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(before) != 1 || before[0].TaskId != 1 {
+		t.Fatalf("EndTime filter expected only t1, got %+v", before)
+	}
+
+	// 区间 [90min前, 30min前) → 仅命中 t2
+	mid, err := new(TaskLog).List(CommonMap{
+		"StartTime": base.Add(-90 * time.Minute),
+		"EndTime":   base.Add(-30 * time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(mid) != 1 || mid[0].TaskId != 2 {
+		t.Fatalf("range filter expected only t2, got %+v", mid)
 	}
 }
 

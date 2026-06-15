@@ -179,6 +179,33 @@ func TestQueryTaskLogs(t *testing.T) {
 	if out.Total != 2 || len(out.Logs) != 2 {
 		t.Fatalf("expected 2 logs for task 1, got total=%d len=%d", out.Total, len(out.Logs))
 	}
+
+	// keyword 过滤（验证 input → params["Keyword"] 映射）：仅任务名 "b" 命中
+	kw, err := queryTaskLogs(queryTaskLogsInput{Keyword: "b"})
+	if err != nil {
+		t.Fatalf("queryTaskLogs(keyword): %v", err)
+	}
+	if kw.Total != 1 || len(kw.Logs) != 1 || kw.Logs[0].TaskId != 2 {
+		t.Fatalf("keyword filter expected only task 2, got total=%d", kw.Total)
+	}
+
+	// 时间范围过滤（验证 start_time/end_time 字符串 → 解析 → params 映射）：
+	// 三条日志的 start_time 由 autoCreateTime 设为创建时刻，用一个未来上界应命中全部，
+	// 用一个过去上界应命中 0 条。
+	future, err := queryTaskLogs(queryTaskLogsInput{EndTime: "2099-01-01"})
+	if err != nil {
+		t.Fatalf("queryTaskLogs(end_time future): %v", err)
+	}
+	if future.Total != 3 {
+		t.Fatalf("end_time future expected all 3, got %d", future.Total)
+	}
+	past, err := queryTaskLogs(queryTaskLogsInput{EndTime: "2000-01-01"})
+	if err != nil {
+		t.Fatalf("queryTaskLogs(end_time past): %v", err)
+	}
+	if past.Total != 0 {
+		t.Fatalf("end_time past expected 0, got %d", past.Total)
+	}
 }
 
 func TestListHosts(t *testing.T) {

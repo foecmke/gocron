@@ -214,6 +214,17 @@ func (taskLog *TaskLog) parseWhere(query *gorm.DB, params CommonMap) {
 		like := "%" + keyword.(string) + "%"
 		query.Where("name LIKE ? OR result LIKE ?", like, like)
 	}
+	// 按开始时间范围过滤（值为 time.Time，与统计查询一致，跨库稳妥）
+	if startTime, ok := params["StartTime"]; ok {
+		if t, valid := startTime.(time.Time); valid && !t.IsZero() {
+			query.Where("start_time >= ?", t)
+		}
+	}
+	if endTime, ok := params["EndTime"]; ok {
+		if t, valid := endTime.(time.Time); valid && !t.IsZero() {
+			query.Where("start_time < ?", t)
+		}
+	}
 }
 
 // 统计相关方法
