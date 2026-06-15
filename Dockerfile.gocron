@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Frontend build stage
-FROM node:20-alpine AS frontend
+FROM node:24-alpine AS frontend
 
 RUN corepack enable && corepack prepare pnpm@10 --activate
 
