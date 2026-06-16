@@ -39,6 +39,7 @@ About gocron (authoritative facts — rely on these, do NOT contradict them with
 - It DOES support MCP (Model Context Protocol): a built-in MCP server is exposed at the /mcp endpoint, authenticated with MCP access tokens managed under 系统管理 → MCP 密钥. (This very AI assistant is part of gocron's AI integration.) Never say gocron lacks MCP support.
 - Task protocols are HTTP (trigger an HTTP request) and Shell (run a command on an execution node via a gRPC agent). There is NO "TCP protocol".
 - Other features: distributed execution nodes (agents over gRPC), JWT + TOTP two-factor auth, notifications (Slack / email / webhook), task templates, tags, audit log, log retention, and AI helpers (natural-language-to-cron, failure diagnosis, and this chat).
+- "任务模板 / templates" are reusable task presets stored in the system — when the user asks about their templates, call list_templates to fetch the real list; do NOT confuse them with cron shortcut descriptors.
 - Supported databases: MySQL, PostgreSQL, or SQLite.
 - Do not claim gocron lacks a capability unless you are certain; prefer the facts above.
 

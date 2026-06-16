@@ -17,7 +17,7 @@ func setupTestDb(t *testing.T) func() {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&models.Task{}, &models.TaskLog{}, &models.Host{}, &models.TaskHost{}); err != nil {
+	if err := db.AutoMigrate(&models.Task{}, &models.TaskLog{}, &models.Host{}, &models.TaskHost{}, &models.TaskTemplate{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	original := models.Db
@@ -205,6 +205,37 @@ func TestQueryTaskLogs(t *testing.T) {
 	}
 	if past.Total != 0 {
 		t.Fatalf("end_time past expected 0, got %d", past.Total)
+	}
+}
+
+func TestListTemplates(t *testing.T) {
+	defer setupTestDb(t)()
+
+	tpls := []models.TaskTemplate{
+		{Name: "备份 MySQL", Description: "dump+gzip", Category: "backup", Protocol: 2, Command: "mysqldump ...", Spec: "0 0 3 * * *"},
+		{Name: "健康检查", Category: "custom", Protocol: 1, Command: "curl ...", Spec: ""},
+	}
+	for i := range tpls {
+		if err := models.Db.Create(&tpls[i]).Error; err != nil {
+			t.Fatalf("seed template: %v", err)
+		}
+	}
+
+	out, err := listTemplates(listTemplatesInput{})
+	if err != nil {
+		t.Fatalf("listTemplates: %v", err)
+	}
+	if out.Total != 2 || len(out.Templates) != 2 {
+		t.Fatalf("expected 2 templates, got total=%d len=%d", out.Total, len(out.Templates))
+	}
+
+	// 分类过滤
+	byCat, err := listTemplates(listTemplatesInput{Category: "backup"})
+	if err != nil {
+		t.Fatalf("listTemplates(category): %v", err)
+	}
+	if byCat.Total != 1 || len(byCat.Templates) != 1 || byCat.Templates[0].Name != "备份 MySQL" {
+		t.Fatalf("category filter failed: %+v", byCat)
 	}
 }
 

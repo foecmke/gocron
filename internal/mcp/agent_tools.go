@@ -44,6 +44,14 @@ func AgentToolDefs() []llm.Tool {
 			"type": "object",
 			"properties": {}
 		}`),
+		tool("list_templates", "List task templates (reusable task presets / 任务模板) with optional category filter.", `{
+			"type": "object",
+			"properties": {
+				"category": {"type": "string", "description": "Filter by category; omit for all"},
+				"page": {"type": "integer", "description": "Page number, starts at 1, default 1"},
+				"page_size": {"type": "integer", "description": "Items per page, default 20, max 100"}
+			}
+		}`),
 		tool("run_task", "Trigger an immediate manual run of a task by id (requires admin).", `{
 			"type": "object",
 			"properties": {
@@ -90,6 +98,12 @@ func CallTool(name string, argsJSON []byte, isAdmin bool) (any, error) {
 		return queryTaskLogs(in)
 	case "list_hosts":
 		return listHosts()
+	case "list_templates":
+		var in listTemplatesInput
+		if err := unmarshalArgs(argsJSON, &in); err != nil {
+			return nil, err
+		}
+		return listTemplates(in)
 	case "run_task":
 		if !isAdmin {
 			return nil, errAdminRequired

@@ -166,6 +166,64 @@ func listHosts() (listHostsOutput, error) {
 	return listHostsOutput{Hosts: hosts}, nil
 }
 
+// ── list_templates ────────────────────────────────────────────────────────────
+
+type listTemplatesInput struct {
+	Category string `json:"category,omitempty" jsonschema:"按分类过滤，省略则返回全部"`
+	Page     int    `json:"page,omitempty" jsonschema:"页码，从 1 开始，默认 1"`
+	PageSize int    `json:"page_size,omitempty" jsonschema:"每页数量，默认 20，最大 100"`
+}
+
+// templateSummary 是任务模板的精简视图（不含 command 正文等大字段，控制 token）。
+type templateSummary struct {
+	Id          int    `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	Protocol    int8   `json:"protocol"` // 1=HTTP, 2=Shell
+	Spec        string `json:"spec"`     // 默认 cron 表达式，可能为空
+	IsBuiltin   int8   `json:"is_builtin"`
+	UsageCount  int    `json:"usage_count"`
+}
+
+type listTemplatesOutput struct {
+	Total     int64             `json:"total"`
+	Templates []templateSummary `json:"templates"`
+}
+
+func listTemplates(in listTemplatesInput) (listTemplatesOutput, error) {
+	params := models.CommonMap{
+		"Page":     normalizePage(in.Page),
+		"PageSize": normalizePageSize(in.PageSize),
+	}
+	if in.Category != "" {
+		params["Category"] = in.Category
+	}
+	tmplModel := new(models.TaskTemplate)
+	total, err := tmplModel.Total(params)
+	if err != nil {
+		return listTemplatesOutput{}, err
+	}
+	list, err := tmplModel.List(params)
+	if err != nil {
+		return listTemplatesOutput{}, err
+	}
+	out := make([]templateSummary, 0, len(list))
+	for _, tpl := range list {
+		out = append(out, templateSummary{
+			Id:          tpl.Id,
+			Name:        tpl.Name,
+			Description: tpl.Description,
+			Category:    tpl.Category,
+			Protocol:    tpl.Protocol,
+			Spec:        tpl.Spec,
+			IsBuiltin:   tpl.IsBuiltin,
+			UsageCount:  tpl.UsageCount,
+		})
+	}
+	return listTemplatesOutput{Total: total, Templates: out}, nil
+}
+
 // ── run_task ──────────────────────────────────────────────────────────────────
 
 type runTaskInput struct {

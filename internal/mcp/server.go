@@ -88,6 +88,14 @@ func registerTools(s *mcp.Server, u *authUser) {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "list_templates",
+		Description: "列出任务模板（可复用的任务预设），可按分类过滤。",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, in listTemplatesInput) (*mcp.CallToolResult, listTemplatesOutput, error) {
+		out, err := listTemplates(in)
+		return nil, out, err
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "run_task",
 		Description: "立即手动触发执行一个任务（需要管理员令牌）。",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, in runTaskInput) (*mcp.CallToolResult, runTaskOutput, error) {
