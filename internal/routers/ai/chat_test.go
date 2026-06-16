@@ -175,6 +175,62 @@ func TestChat_StreamsToolLoopAndReplies(t *testing.T) {
 	}
 }
 
+func TestProposeRunTask_RequiresConfirmation(t *testing.T) {
+	cleanup := setupDb(t)
+	defer cleanup()
+
+	collect := func() (func(sseEvent), *[]sseEvent) {
+		var evs []sseEvent
+		return func(e sseEvent) { evs = append(evs, e) }, &evs
+	}
+	hasEvent := func(evs []sseEvent, name string) bool {
+		for _, e := range evs {
+			if e.event == name {
+				return true
+			}
+		}
+		return false
+	}
+
+	// 非管理员：拒绝，不发 confirm_required
+	send, evs := collect()
+	out := proposeRunTask(`{"id":1}`, false, send, "t1")
+	if !strings.Contains(out, "Permission denied") {
+		t.Fatalf("non-admin should be denied, got %q", out)
+	}
+	if hasEvent(*evs, "confirm_required") {
+		t.Fatal("non-admin must not get confirm_required")
+	}
+
+	// 管理员 + 存在的任务：不执行，发 confirm_required
+	if err := models.Db.Create(&models.Task{Id: 1, Name: "backup", Spec: "0 * * * * *", Command: "ls", Protocol: models.TaskHTTP, Level: models.TaskLevelParent}).Error; err != nil {
+		t.Fatalf("seed task: %v", err)
+	}
+	send, evs = collect()
+	out = proposeRunTask(`{"id":1}`, true, send, "t2")
+	if !strings.Contains(out, "NOT executed") {
+		t.Fatalf("admin run should be proposed-not-executed, got %q", out)
+	}
+	if !hasEvent(*evs, "confirm_required") {
+		t.Fatal("admin should get confirm_required event")
+	}
+}
+
+func TestRunTask_RejectsNonAdmin(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/ai/run-task/1", nil)
+	c.Params = gin.Params{{Key: "id", Value: "1"}}
+
+	RunTask(c) // 无登录用户 → 非管理员
+
+	var env map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &env)
+	if code, _ := env["code"].(float64); code == 0 {
+		t.Fatalf("non-admin must be rejected, got %v", w.Body.String())
+	}
+}
+
 func TestChat_EmptyMessages(t *testing.T) {
 	defer setupDb(t)()
 	enableLLM(t, "http://unused.example")

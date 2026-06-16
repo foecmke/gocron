@@ -97,8 +97,14 @@ export interface StreamAiChatHandlers {
   onReasoning: (delta: string) => void
   onToolCall: (t: ToolCall) => void
   onToolResult: (t: ToolResult) => void
+  onConfirmRequired: (t: { taskId: number; taskName: string }) => void
   onError: (msg: string) => void
   onDone: () => void
+}
+
+/** POST /api/ai/run-task/:id — 用户在聊天里确认后真正执行任务（仅管理员，后端写审计）。 */
+export function confirmRunTask(id: number) {
+  return request.post<null>({ url: `/api/ai/run-task/${id}` })
 }
 
 /**
@@ -189,6 +195,12 @@ export async function streamAiChat(
           id: String(data.id ?? ''),
           name: String(data.name ?? ''),
           ok: data.ok === true
+        })
+        break
+      case 'confirm_required':
+        handlers.onConfirmRequired({
+          taskId: Number(data.task_id ?? 0),
+          taskName: String(data.task_name ?? '')
         })
         break
       case 'error':

@@ -818,6 +818,13 @@
     "failed": "出错了，请重试",
     "copy": "复制",
     "copied": "已复制",
-    "copyFailed": "复制失败"
+    "copyFailed": "复制失败",
+    "runConfirm": "AI 请求执行任务「{name}」，确认吗？",
+    "run": "执行",
+    "cancel": "取消",
+    "runStarted": "任务「{name}」已触发",
+    "runDone": "已执行",
+    "runFailed": "执行失败",
+    "runCancelled": "已取消"
   }
 }

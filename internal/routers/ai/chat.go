@@ -7,16 +7,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gocronx-team/gocron/internal/mcp"
+	"github.com/gocronx-team/gocron/internal/models"
 	"github.com/gocronx-team/gocron/internal/modules/i18n"
 	"github.com/gocronx-team/gocron/internal/modules/llm"
 	"github.com/gocronx-team/gocron/internal/modules/logger"
+	"github.com/gocronx-team/gocron/internal/modules/utils"
 	"github.com/gocronx-team/gocron/internal/routers/base"
 	"github.com/gocronx-team/gocron/internal/routers/user"
+	"github.com/gocronx-team/gocron/internal/service"
 )
 
 const (
@@ -80,6 +84,7 @@ type sseEvent struct {
 //   - message      {"content": "<delta>"}                       内容增量
 //   - tool_call    {"id","name","arguments"}                    模型决定调用工具
 //   - tool_result  {"id","name","ok": true|false}               工具执行完成（不回传结果体）
+//   - confirm_required {"task_id","task_name"}                   模型请求执行任务，需用户确认（不自动执行）
 //   - error        {"message": "<msg>"}                          运行期错误
 //   - done         {}                                           始终最后发送
 //
@@ -153,6 +158,14 @@ func Chat(c *gin.Context) {
 				"arguments": tc.Function.Arguments,
 			}})
 
+			// run_task 不在 agent 内直接执行：发 confirm_required 让用户在前端确认，
+			// 真正的执行走 /api/ai/run-task（管理员 + 审计）。防止提示注入误触发执行。
+			if tc.Function.Name == "run_task" {
+				content := proposeRunTask(tc.Function.Arguments, isAdmin, sendEvent, tc.ID)
+				messages = append(messages, llm.Message{Role: "tool", ToolCallID: tc.ID, Content: content})
+				continue
+			}
+
 			result, terr := safeCallTool(tc.Function.Name, tc.Function.Arguments, isAdmin)
 			if terr != nil {
 				logger.Errorf("AI对话#工具失败#%s#args=%s#%s", tc.Function.Name, tc.Function.Arguments, terr)
@@ -186,6 +199,73 @@ func safeCallTool(name, args string, isAdmin bool) (result any, err error) {
 		}
 	}()
 	return mcp.CallTool(name, []byte(args), isAdmin)
+}
+
+// proposeRunTask 处理模型的 run_task 请求：不执行，只校验并向前端发 confirm_required，
+// 返回给模型的 tool 结果说明"未执行、需用户确认"。返回值作为该 tool 调用的结果文本。
+func proposeRunTask(args string, isAdmin bool, sendEvent func(sseEvent), toolCallID string) string {
+	emitResult := func(ok bool) {
+		sendEvent(sseEvent{event: "tool_result", data: map[string]any{"id": toolCallID, "name": "run_task", "ok": ok}})
+	}
+	if !isAdmin {
+		emitResult(false)
+		return "Permission denied: running a task requires an admin account. Not executed."
+	}
+	var in struct {
+		Id int `json:"id"`
+	}
+	_ = json.Unmarshal([]byte(args), &in)
+	if in.Id <= 0 {
+		emitResult(false)
+		return "Invalid task id. Not executed."
+	}
+	task, err := new(models.Task).Detail(in.Id)
+	if err != nil || task.Id <= 0 {
+		emitResult(false)
+		return fmt.Sprintf("Task %d not found. Not executed.", in.Id)
+	}
+	emitResult(true)
+	sendEvent(sseEvent{event: "confirm_required", data: map[string]any{"task_id": task.Id, "task_name": task.Name}})
+	return fmt.Sprintf("Task '%s' (id %d) was NOT executed. Running a task needs explicit user confirmation; tell the user to click the confirm button if they want to run it.", task.Name, task.Id)
+}
+
+// RunTask 是用户在聊天里点「确认执行」后真正触发任务的端点：仅管理员可用，且写审计。
+// 路由 POST /api/ai/run-task/:id（不在 urlAuth 普通用户白名单内，故默认仅管理员可达）。
+func RunTask(c *gin.Context) {
+	if !user.IsAdmin(c) {
+		base.RespondError(c, i18n.T(c, "unauthorized"))
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		base.RespondError(c, i18n.T(c, "param_error"))
+		return
+	}
+	task, err := new(models.Task).Detail(id)
+	if err != nil || task.Id <= 0 {
+		base.RespondError(c, i18n.T(c, "get_task_detail_failed"))
+		return
+	}
+	task.Spec = i18n.T(c, "manual_run")
+	service.ServiceTask.Run(task)
+	writeRunAudit(c, task.Id, task.Name)
+	base.RespondSuccess(c, i18n.T(c, "task_started_check_log"), nil)
+}
+
+// writeRunAudit 为 AI 确认执行的任务写一条审计记录（GET /api/task/run 不经审计中间件，这里显式补）。
+func writeRunAudit(c *gin.Context, id int, name string) {
+	log := &models.AuditLog{
+		Username:   user.Username(c),
+		Ip:         utils.ClientIP(c),
+		Module:     "task",
+		Action:     "run",
+		TargetId:   id,
+		TargetName: name,
+		Detail:     "AI 助手确认执行",
+	}
+	if _, err := log.Create(); err != nil {
+		logger.Warnf("AI对话#执行任务审计写入失败#%s", err)
+	}
 }
 
 // buildMessages 在用户消息前注入系统提示词（含当前服务器时间）。

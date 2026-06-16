@@ -180,6 +180,8 @@ func Register(r *gin.Engine) {
 	aiGroup := api.Group("/ai")
 	{
 		aiGroup.POST("/chat", ai.Chat)
+		// 仅管理员（不在 urlAuth 普通用户白名单内）：用户在聊天里确认后真正执行任务
+		aiGroup.POST("/run-task/:id", ai.RunTask)
 	}
 
 	// 审计日志（需认证）

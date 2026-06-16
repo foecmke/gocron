@@ -84,6 +84,29 @@
               {{ toolLabel(tool) }}
             </ElTag>
           </div>
+
+          <!-- run_task 确认:模型不会自动执行任务,必须用户在此点确认 -->
+          <div
+            v-if="msg.role === 'assistant' && pendingRunByIndex[index]"
+            class="ai-chat-run-confirm"
+          >
+            <span class="ai-chat-run-label">
+              {{ t('aiChat.runConfirm', { name: pendingRunByIndex[index].taskName }) }}
+            </span>
+            <template v-if="pendingRunByIndex[index].status === 'pending'">
+              <ElButton type="primary" size="small" @click="confirmRun(index)">
+                {{ t('aiChat.run') }}
+              </ElButton>
+              <ElButton size="small" @click="cancelRun(index)">{{ t('aiChat.cancel') }}</ElButton>
+            </template>
+            <ElTag
+              v-else
+              size="small"
+              :type="pendingRunByIndex[index].status === 'done' ? 'success' : 'info'"
+            >
+              {{ runStatusLabel(pendingRunByIndex[index].status) }}
+            </ElTag>
+          </div>
         </div>
       </div>
 
@@ -110,7 +133,7 @@
 <script setup lang="ts">
   import { useI18n } from 'vue-i18n'
   import { ElButton, ElDrawer, ElInput, ElMessage, ElTag } from 'element-plus'
-  import { streamAiChat, type AiChatMessage } from '@/api/ai'
+  import { streamAiChat, confirmRunTask, type AiChatMessage } from '@/api/ai'
   import { copyToClipboard } from '@/utils/clipboard'
   import { renderMarkdown } from '@/utils/markdown'
 
@@ -132,6 +155,13 @@
   const toolsByIndex = ref<Record<number, ToolChip[]>>({})
   // 思考过程按 messages 下标存放，仅用于展示，不回传给后端。
   const reasoningByIndex = ref<Record<number, string>>({})
+  // run_task 确认请求：模型想执行任务时，需用户在此确认后才真正执行。
+  type PendingRun = {
+    taskId: number
+    taskName: string
+    status: 'pending' | 'done' | 'failed' | 'cancelled'
+  }
+  const pendingRunByIndex = ref<Record<number, PendingRun>>({})
   const listRef = ref<HTMLElement>()
   // 进行中流的取消句柄，清空/关闭时用来中断，避免泄漏。
   let controller: AbortController | null = null
@@ -223,6 +253,14 @@
             )
           }
         },
+        onConfirmRequired: (req) => {
+          // 模型想执行任务：不自动执行，挂一个待用户确认的请求。
+          pendingRunByIndex.value = {
+            ...pendingRunByIndex.value,
+            [assistantIndex]: { taskId: req.taskId, taskName: req.taskName, status: 'pending' }
+          }
+          scrollToBottom()
+        },
         onError: (msg) => {
           ElMessage.error(msg)
           const target = messages.value[assistantIndex]
@@ -264,11 +302,40 @@
     }
   }
 
+  const setRunStatus = (index: number, status: PendingRun['status']): void => {
+    const cur = pendingRunByIndex.value[index]
+    if (cur) pendingRunByIndex.value = { ...pendingRunByIndex.value, [index]: { ...cur, status } }
+  }
+
+  const confirmRun = async (index: number): Promise<void> => {
+    const run = pendingRunByIndex.value[index]
+    if (!run || run.status !== 'pending') return
+    try {
+      await confirmRunTask(run.taskId)
+      setRunStatus(index, 'done')
+      ElMessage.success(t('aiChat.runStarted', { name: run.taskName }))
+    } catch {
+      // 错误已由 http 拦截器提示
+      setRunStatus(index, 'failed')
+    }
+  }
+
+  const cancelRun = (index: number): void => {
+    setRunStatus(index, 'cancelled')
+  }
+
+  const runStatusLabel = (s: PendingRun['status']): string => {
+    if (s === 'done') return t('aiChat.runDone')
+    if (s === 'failed') return t('aiChat.runFailed')
+    return t('aiChat.runCancelled')
+  }
+
   const clearConversation = (): void => {
     cancelStream()
     messages.value = []
     toolsByIndex.value = {}
     reasoningByIndex.value = {}
+    pendingRunByIndex.value = {}
   }
 
   onBeforeUnmount(() => {
@@ -446,6 +513,17 @@
 
   .ai-chat-tools {
     @apply flex flex-wrap items-center gap-1 mt-1;
+  }
+
+  .ai-chat-run-confirm {
+    @apply flex flex-wrap items-center gap-2 mt-2 p-2 rounded-md;
+
+    background-color: var(--art-gray-100);
+    border: 1px solid var(--art-gray-300);
+  }
+
+  .ai-chat-run-label {
+    @apply text-xs text-g-700;
   }
 
   .ai-chat-tools-label {

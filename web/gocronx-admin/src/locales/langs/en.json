@@ -818,6 +818,13 @@
     "failed": "Something went wrong, please retry",
     "copy": "Copy",
     "copied": "Copied",
-    "copyFailed": "Copy failed"
+    "copyFailed": "Copy failed",
+    "runConfirm": "AI wants to run task \"{name}\". Confirm?",
+    "run": "Run",
+    "cancel": "Cancel",
+    "runStarted": "Task \"{name}\" started",
+    "runDone": "Started",
+    "runFailed": "Run failed",
+    "runCancelled": "Cancelled"
   }
 }
