@@ -2,11 +2,21 @@
 <template>
   <ArtIconButton icon="ri:robot-2-line" :title="t('aiChat.title')" @click="openDrawer" />
 
+  <!-- 可拖拽改宽手柄：骑在抽屉左边界上，Teleport 到 body 避免被父级 stacking context 限制 -->
+  <Teleport to="body">
+    <div
+      v-if="visible"
+      class="ai-chat-resizer"
+      :style="{ right: drawerWidth + 'px' }"
+      @mousedown.prevent.stop="startResize"
+    ></div>
+  </Teleport>
+
   <ElDrawer
     v-model="visible"
     :title="t('aiChat.title')"
     direction="rtl"
-    size="420px"
+    :size="drawerWidth"
     class="ai-chat-drawer"
     @close="cancelStream"
   >
@@ -99,6 +109,9 @@
   const visible = ref(false)
   const loading = ref(false)
   const draft = ref('')
+  // 抽屉宽度（px），可由左边界手柄拖拽调整。
+  const drawerWidth = ref(420)
+  const MIN_WIDTH = 360
   const messages = ref<AiChatMessage[]>([])
   // 工具列表按 messages 下标存放，仅用于展示，不回传给后端。
   const toolsByIndex = ref<Record<number, ToolChip[]>>({})
@@ -108,6 +121,22 @@
 
   const openDrawer = (): void => {
     visible.value = true
+  }
+
+  // 拖拽改宽：rtl 抽屉锚定右侧，宽度 = 视口宽 - 鼠标 X，限制在 [MIN_WIDTH, 92vw 且 ≤1000]。
+  const doResize = (e: MouseEvent): void => {
+    const max = Math.min(Math.round(window.innerWidth * 0.92), 1000)
+    drawerWidth.value = Math.max(MIN_WIDTH, Math.min(window.innerWidth - e.clientX, max))
+  }
+  const stopResize = (): void => {
+    document.removeEventListener('mousemove', doResize)
+    document.removeEventListener('mouseup', stopResize)
+    document.body.style.userSelect = ''
+  }
+  const startResize = (): void => {
+    document.addEventListener('mousemove', doResize)
+    document.addEventListener('mouseup', stopResize)
+    document.body.style.userSelect = 'none'
   }
 
   const toolLabel = (tool: ToolChip): string => {
@@ -216,11 +245,29 @@
     toolsByIndex.value = {}
   }
 
-  onBeforeUnmount(cancelStream)
+  onBeforeUnmount(() => {
+    cancelStream()
+    stopResize()
+  })
 </script>
 
 <style scoped>
   @reference '@styles/core/tailwind.css';
+
+  .ai-chat-resizer {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    z-index: 2050; /* 高于 el-drawer 面板，便于拖拽 */
+    width: 6px;
+    margin-right: -3px; /* 居中骑在抽屉左边界上 */
+    cursor: ew-resize;
+    transition: background-color 0.15s;
+  }
+
+  .ai-chat-resizer:hover {
+    background-color: var(--main-color);
+  }
 
   .ai-chat-header {
     @apply flex items-center justify-between w-full pr-6;
