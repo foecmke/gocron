@@ -1,10 +1,14 @@
 package mcp
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/gocronx-team/gocron/internal/models"
+	"github.com/gocronx-team/gocron/internal/modules/diagnosis"
+	"github.com/gocronx-team/gocron/internal/modules/llm"
 	"github.com/gocronx-team/gocron/internal/service"
 )
 
@@ -121,6 +125,30 @@ func queryTaskLogs(in queryTaskLogsInput) (queryTaskLogsOutput, error) {
 		return queryTaskLogsOutput{}, err
 	}
 	return queryTaskLogsOutput{Total: total, Logs: logs}, nil
+}
+
+// ── diagnose_task_log ─────────────────────────────────────────────────────────
+
+type diagnoseTaskLogInput struct {
+	Id int `json:"id" jsonschema:"要诊断的任务执行日志 ID"`
+}
+
+// diagnoseTaskLog 对某条失败日志做 LLM 归因，复用 diagnosis 包（与 HTTP 接口同源）。
+func diagnoseTaskLog(in diagnoseTaskLogInput) (diagnosis.Result, error) {
+	logModel := new(models.TaskLog)
+	if err := logModel.Find(int64(in.Id)); err != nil {
+		return diagnosis.Result{}, err
+	}
+	if strings.TrimSpace(logModel.Result) == "" {
+		return diagnosis.Result{}, fmt.Errorf("task log %d has no execution output to diagnose", in.Id)
+	}
+	client, err := llm.FromSettings()
+	if err != nil {
+		return diagnosis.Result{}, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), diagnosis.Timeout)
+	defer cancel()
+	return diagnosis.Diagnose(ctx, client, logModel, false)
 }
 
 // ── list_hosts ────────────────────────────────────────────────────────────────

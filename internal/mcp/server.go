@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gocronx-team/gocron/internal/modules/diagnosis"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -94,6 +95,14 @@ func registerTools(s *mcp.Server, u *authUser) {
 			return nil, runTaskOutput{}, errAdminRequired
 		}
 		out, err := runTask(in)
+		return nil, out, err
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "diagnose_task_log",
+		Description: "对一条失败的任务执行日志做归因诊断并给出修复建议（需日志含执行输出）。",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, in diagnoseTaskLogInput) (*mcp.CallToolResult, diagnosis.Result, error) {
+		out, err := diagnoseTaskLog(in)
 		return nil, out, err
 	})
 }

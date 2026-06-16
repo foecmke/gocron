@@ -44,6 +44,13 @@ func AgentToolDefs() []llm.Tool {
 			"type": "object",
 			"properties": {}
 		}`),
+		tool("diagnose_task_log", "Diagnose why a task execution failed and suggest fixes, given a task-log id (the log must have execution output).", `{
+			"type": "object",
+			"properties": {
+				"id": {"type": "integer", "description": "Task log id to diagnose"}
+			},
+			"required": ["id"]
+		}`),
 		tool("run_task", "Trigger an immediate manual run of a task by id (requires admin).", `{
 			"type": "object",
 			"properties": {
@@ -90,6 +97,12 @@ func CallTool(name string, argsJSON []byte, isAdmin bool) (any, error) {
 		return queryTaskLogs(in)
 	case "list_hosts":
 		return listHosts()
+	case "diagnose_task_log":
+		var in diagnoseTaskLogInput
+		if err := unmarshalArgs(argsJSON, &in); err != nil {
+			return nil, err
+		}
+		return diagnoseTaskLog(in)
 	case "run_task":
 		if !isAdmin {
 			return nil, errAdminRequired

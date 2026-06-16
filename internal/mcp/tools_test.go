@@ -3,7 +3,27 @@ package mcp
 import (
 	"testing"
 	"time"
+
+	"github.com/gocronx-team/gocron/internal/models"
 )
+
+func TestDiagnoseTaskLog_GuardPaths(t *testing.T) {
+	defer setupTestDb(t)()
+
+	// 日志不存在 → 报错（不触达 LLM）
+	if _, err := diagnoseTaskLog(diagnoseTaskLogInput{Id: 9999}); err == nil {
+		t.Fatal("expected error for missing log")
+	}
+
+	// 日志存在但无执行输出 → 报错（不触达 LLM）
+	log := &models.TaskLog{Id: 1, Name: "a", Result: "   "}
+	if err := models.Db.Create(log).Error; err != nil {
+		t.Fatalf("seed log: %v", err)
+	}
+	if _, err := diagnoseTaskLog(diagnoseTaskLogInput{Id: 1}); err == nil {
+		t.Fatal("expected error when log has no result")
+	}
+}
 
 func TestParseTimeArg(t *testing.T) {
 	cases := []struct {
