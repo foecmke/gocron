@@ -119,10 +119,11 @@ func Chat(c *gin.Context) {
 				sendEvent(sseEvent{event: "reasoning", data: map[string]string{"content": delta}})
 			})
 		if err != nil {
-			logger.Errorf("AI对话#调用LLM失败#%s", err)
+			logger.Errorf("AI对话#调用LLM失败#轮次%d#%s", i, err)
 			sendEvent(sseEvent{event: "error", data: map[string]string{"message": i18n.T(c, "ai_chat_failed")}})
 			return
 		}
+		logger.Infof("AI对话#轮次%d#内容长度%d#工具数%d", i, len(msg.Content), len(msg.ToolCalls))
 
 		// 没有工具调用：模型已通过 message 事件流出终答。
 		if len(msg.ToolCalls) == 0 {
@@ -137,7 +138,12 @@ func Chat(c *gin.Context) {
 				"arguments": tc.Function.Arguments,
 			}})
 
-			result, terr := mcp.CallTool(tc.Function.Name, []byte(tc.Function.Arguments), isAdmin)
+			result, terr := safeCallTool(tc.Function.Name, tc.Function.Arguments, isAdmin)
+			if terr != nil {
+				logger.Errorf("AI对话#工具失败#%s#args=%s#%s", tc.Function.Name, tc.Function.Arguments, terr)
+			} else {
+				logger.Infof("AI对话#工具成功#%s", tc.Function.Name)
+			}
 			sendEvent(sseEvent{event: "tool_result", data: map[string]any{
 				"id":   tc.ID,
 				"name": tc.Function.Name,
@@ -152,8 +158,19 @@ func Chat(c *gin.Context) {
 		}
 	}
 
-	// 迭代用尽仍未给出终答。
+	// 达到最大轮次仍未给出终答（模型一直在调工具/反复打转）。
+	logger.Errorf("AI对话#达到最大轮次%d仍无终答", maxIterations)
 	sendEvent(sseEvent{event: "error", data: map[string]string{"message": i18n.T(c, "ai_chat_failed")}})
+}
+
+// safeCallTool 执行工具调用并兜底 panic，避免单个工具异常中断整个 SSE 流。
+func safeCallTool(name, args string, isAdmin bool) (result any, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("tool %s panicked: %v", name, r)
+		}
+	}()
+	return mcp.CallTool(name, []byte(args), isAdmin)
 }
 
 // buildMessages 在用户消息前注入系统提示词（含当前服务器时间）。
