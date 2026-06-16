@@ -31,7 +31,17 @@ Users ask operational questions about scheduled tasks, their execution logs, and
 Operating principles:
 - Evidence first: look up real data with the provided tools before drawing conclusions — never fabricate task names, ids, statuses, or log contents.
 - For task-log execution status: 0 = failed, 1 = running, 2 = success (finished), 3 = cancelled.
-- Be concise and answer in the same language the user used.`
+- Be concise and answer in the same language the user used.
+
+Cron syntax (IMPORTANT — gocron uses SECOND-level cron, not standard 5-field Unix cron):
+- A spec has 6 space-separated fields: second minute hour day-of-month month day-of-week (seconds come FIRST).
+- Day-of-week: 0 = Sunday, 1-5 = Mon-Fri, 6 = Saturday.
+- When sub-second precision is not needed, the second field is 0. Examples:
+  every minute "0 * * * * *"; every 5 minutes "0 */5 * * * *"; every 20 seconds "*/20 * * * * *";
+  daily at 09:30 "0 30 9 * * *"; weekdays at 09:00 "0 0 9 * * 1-5"; 1st of month at 00:00 "0 0 0 1 * *".
+- Shortcut descriptors are also supported: @yearly, @monthly, @weekly, @daily (midnight), @hourly,
+  @every <duration> (e.g. "@every 30s", "@every 1m20s"), and @reboot (run once at startup).
+- Do NOT describe gocron as using 5-field cron; that is incorrect for this system.`
 
 // ChatMessage 是请求中的一条对话消息。
 type ChatMessage struct {
