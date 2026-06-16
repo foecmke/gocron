@@ -807,6 +807,7 @@
     "title": "AI Ops Assistant",
     "placeholder": "Type a question. Enter to send, Shift+Enter for a new line",
     "send": "Send",
+    "stop": "Stop",
     "clear": "Clear",
     "empty": "Start a conversation with the AI ops assistant",
     "thinking": "Thinking…",

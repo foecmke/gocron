@@ -96,7 +96,10 @@
           :placeholder="t('aiChat.placeholder')"
           @keydown.enter="onEnter"
         />
-        <ElButton type="primary" :loading="loading" :disabled="!draft.trim()" @click="send">
+        <ElButton v-if="loading" type="danger" @click="cancelStream">
+          {{ t('aiChat.stop') }}
+        </ElButton>
+        <ElButton v-else type="primary" :disabled="!draft.trim()" @click="send">
           {{ t('aiChat.send') }}
         </ElButton>
       </div>

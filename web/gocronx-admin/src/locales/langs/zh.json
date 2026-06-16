@@ -807,6 +807,7 @@
     "title": "AI 运维助手",
     "placeholder": "输入问题，Enter 发送，Shift+Enter 换行",
     "send": "发送",
+    "stop": "停止",
     "clear": "清空对话",
     "empty": "开始和 AI 运维助手对话吧",
     "thinking": "正在思考…",
