@@ -30,7 +30,13 @@
           :class="msg.role === 'user' ? 'is-user' : 'is-assistant'"
         >
           <div class="ai-chat-bubble">
-            <template v-if="msg.content">{{ msg.content }}</template>
+            <!-- 助手消息渲染 Markdown（renderMarkdown 已做 HTML 转义 + 白名单，XSS 安全）；用户消息保持纯文本 -->
+            <div
+              v-if="msg.content && msg.role === 'assistant'"
+              class="ai-chat-md"
+              v-html="renderMarkdown(msg.content)"
+            ></div>
+            <template v-else-if="msg.content">{{ msg.content }}</template>
             <span v-else-if="msg.role === 'assistant' && loading" class="ai-chat-thinking">
               {{ t('aiChat.thinking') }}
             </span>
@@ -81,6 +87,7 @@
   import { ElButton, ElDrawer, ElInput, ElMessage, ElTag } from 'element-plus'
   import { streamAiChat, type AiChatMessage } from '@/api/ai'
   import { copyToClipboard } from '@/utils/clipboard'
+  import { renderMarkdown } from '@/utils/markdown'
 
   defineOptions({ name: 'ArtAiChat' })
 
@@ -265,6 +272,84 @@
 
   .ai-chat-thinking {
     @apply text-g-500;
+  }
+
+  /* Markdown 渲染内容（v-html，不受 scoped 影响，需用 :deep） */
+  .ai-chat-md {
+    white-space: normal;
+  }
+
+  .ai-chat-md :deep(p) {
+    margin: 0 0 8px;
+  }
+
+  .ai-chat-md :deep(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  .ai-chat-md :deep(:is(h1, h2, h3, h4, h5, h6)) {
+    margin: 10px 0 6px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .ai-chat-md :deep(:is(ul, ol)) {
+    padding-left: 20px;
+    margin: 4px 0;
+  }
+
+  .ai-chat-md :deep(li) {
+    margin: 2px 0;
+  }
+
+  .ai-chat-md :deep(code) {
+    padding: 1px 4px;
+    font-family: monospace;
+    font-size: 12px;
+    background: var(--art-gray-300);
+    border-radius: 3px;
+  }
+
+  .ai-chat-md :deep(pre) {
+    padding: 8px 10px;
+    margin: 6px 0;
+    overflow-x: auto;
+    background: var(--art-gray-300);
+    border-radius: 6px;
+  }
+
+  .ai-chat-md :deep(pre code) {
+    padding: 0;
+    background: none;
+  }
+
+  .ai-chat-md :deep(table) {
+    margin: 6px 0;
+    font-size: 12px;
+    border-collapse: collapse;
+  }
+
+  .ai-chat-md :deep(:is(th, td)) {
+    padding: 4px 8px;
+    border: 1px solid var(--art-gray-400);
+  }
+
+  .ai-chat-md :deep(a) {
+    color: var(--main-color);
+    text-decoration: underline;
+  }
+
+  .ai-chat-md :deep(blockquote) {
+    padding-left: 10px;
+    margin: 6px 0;
+    color: var(--art-gray-600);
+    border-left: 3px solid var(--art-gray-400);
+  }
+
+  .ai-chat-md :deep(hr) {
+    margin: 8px 0;
+    border: none;
+    border-top: 1px solid var(--art-gray-400);
   }
 
   .ai-chat-copy {
