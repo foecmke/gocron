@@ -810,6 +810,7 @@
     "clear": "Clear",
     "empty": "Start a conversation with the AI ops assistant",
     "thinking": "Thinking…",
+    "reasoning": "Reasoning",
     "calling": "Calling {name}",
     "toolDone": "{name} done",
     "toolFailed": "{name} failed",

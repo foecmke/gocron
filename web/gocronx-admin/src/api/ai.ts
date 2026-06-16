@@ -94,6 +94,7 @@ export interface ToolResult {
 
 export interface StreamAiChatHandlers {
   onMessage: (delta: string) => void
+  onReasoning: (delta: string) => void
   onToolCall: (t: ToolCall) => void
   onToolResult: (t: ToolResult) => void
   onError: (msg: string) => void
@@ -172,6 +173,9 @@ export async function streamAiChat(
     switch (eventType) {
       case 'message':
         handlers.onMessage(String(data.content ?? ''))
+        break
+      case 'reasoning':
+        handlers.onReasoning(String(data.content ?? ''))
         break
       case 'tool_call':
         handlers.onToolCall({

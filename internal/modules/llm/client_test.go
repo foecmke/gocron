@@ -156,6 +156,7 @@ func TestChatStream_ContentOnly(t *testing.T) {
 			t.Errorf("expected stream:true in body, got %s", body)
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"thinking...\"}}]}\n\n")
 		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\n")
 		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\", \"}}]}\n\n")
 		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"world\"}}]}\n\n")
@@ -163,11 +164,11 @@ func TestChatStream_ContentOnly(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	var deltas []string
+	var deltas, reasoning []string
 	c := New(srv.URL, "k", "m")
-	msg, err := c.ChatStream(context.Background(), []Message{{Role: "user", Content: "hi"}}, nil, func(d string) {
-		deltas = append(deltas, d)
-	})
+	msg, err := c.ChatStream(context.Background(), []Message{{Role: "user", Content: "hi"}}, nil,
+		func(d string) { deltas = append(deltas, d) },
+		func(d string) { reasoning = append(reasoning, d) })
 	if err != nil {
 		t.Fatalf("ChatStream: %v", err)
 	}
@@ -176,6 +177,10 @@ func TestChatStream_ContentOnly(t *testing.T) {
 	}
 	if len(deltas) != 3 || deltas[0] != "Hello" || deltas[1] != ", " || deltas[2] != "world" {
 		t.Fatalf("onContent deltas = %v", deltas)
+	}
+	// reasoning_content 走单独回调，不计入最终 Content
+	if len(reasoning) != 1 || reasoning[0] != "thinking..." {
+		t.Fatalf("onReasoning deltas = %v", reasoning)
 	}
 	if len(msg.ToolCalls) != 0 {
 		t.Fatalf("unexpected tool calls: %+v", msg.ToolCalls)
@@ -193,7 +198,7 @@ func TestChatStream_ToolCallSplitAcrossChunks(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "k", "m")
-	msg, err := c.ChatStream(context.Background(), []Message{{Role: "user", Content: "x"}}, nil, nil)
+	msg, err := c.ChatStream(context.Background(), []Message{{Role: "user", Content: "x"}}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ChatStream: %v", err)
 	}
@@ -220,7 +225,7 @@ func TestChatStream_Non200(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "k", "m")
-	_, err := c.ChatStream(context.Background(), []Message{{Role: "user", Content: "x"}}, nil, nil)
+	_, err := c.ChatStream(context.Background(), []Message{{Role: "user", Content: "x"}}, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error on non-200")
 	}

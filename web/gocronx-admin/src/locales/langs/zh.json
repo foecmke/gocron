@@ -810,6 +810,7 @@
     "clear": "清空对话",
     "empty": "开始和 AI 运维助手对话吧",
     "thinking": "正在思考…",
+    "reasoning": "思考过程",
     "calling": "正在调用 {name}",
     "toolDone": "{name} 完成",
     "toolFailed": "{name} 失败",

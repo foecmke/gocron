@@ -61,6 +61,7 @@ type sseEvent struct {
 
 // Chat 运行一个有界的 LLM 工具调用循环，并以 SSE 流式推送结果。
 // 事件契约：
+//   - reasoning    {"content": "<delta>"}                       思考过程增量（思考型模型）
 //   - message      {"content": "<delta>"}                       内容增量
 //   - tool_call    {"id","name","arguments"}                    模型决定调用工具
 //   - tool_result  {"id","name","ok": true|false}               工具执行完成（不回传结果体）
@@ -110,9 +111,13 @@ func Chat(c *gin.Context) {
 	defer sendEvent(sseEvent{event: "done", data: map[string]any{}})
 
 	for i := 0; i < maxIterations; i++ {
-		msg, err := client.ChatStream(ctx, messages, tools, func(delta string) {
-			sendEvent(sseEvent{event: "message", data: map[string]string{"content": delta}})
-		})
+		msg, err := client.ChatStream(ctx, messages, tools,
+			func(delta string) {
+				sendEvent(sseEvent{event: "message", data: map[string]string{"content": delta}})
+			},
+			func(delta string) {
+				sendEvent(sseEvent{event: "reasoning", data: map[string]string{"content": delta}})
+			})
 		if err != nil {
 			logger.Errorf("AI对话#调用LLM失败#%s", err)
 			sendEvent(sseEvent{event: "error", data: map[string]string{"message": i18n.T(c, "ai_chat_failed")}})

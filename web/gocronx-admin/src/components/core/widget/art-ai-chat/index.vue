@@ -40,6 +40,15 @@
           :class="msg.role === 'user' ? 'is-user' : 'is-assistant'"
         >
           <div class="ai-chat-bubble">
+            <!-- 思考过程（思考型模型）：可折叠，默认展开，让用户在长时间推理时看到模型在动 -->
+            <details
+              v-if="msg.role === 'assistant' && reasoningByIndex[index]"
+              class="ai-chat-reasoning"
+              open
+            >
+              <summary>{{ t('aiChat.reasoning') }}</summary>
+              <div class="ai-chat-reasoning-body">{{ reasoningByIndex[index] }}</div>
+            </details>
             <!-- 助手消息渲染 Markdown（renderMarkdown 已做 HTML 转义 + 白名单，XSS 安全）；用户消息保持纯文本 -->
             <div
               v-if="msg.content && msg.role === 'assistant'"
@@ -47,7 +56,10 @@
               v-html="renderMarkdown(msg.content)"
             ></div>
             <template v-else-if="msg.content">{{ msg.content }}</template>
-            <span v-else-if="msg.role === 'assistant' && loading" class="ai-chat-thinking">
+            <span
+              v-else-if="msg.role === 'assistant' && loading && !reasoningByIndex[index]"
+              class="ai-chat-thinking"
+            >
               {{ t('aiChat.thinking') }}
             </span>
           </div>
@@ -115,6 +127,8 @@
   const messages = ref<AiChatMessage[]>([])
   // 工具列表按 messages 下标存放，仅用于展示，不回传给后端。
   const toolsByIndex = ref<Record<number, ToolChip[]>>({})
+  // 思考过程按 messages 下标存放，仅用于展示，不回传给后端。
+  const reasoningByIndex = ref<Record<number, string>>({})
   const listRef = ref<HTMLElement>()
   // 进行中流的取消句柄，清空/关闭时用来中断，避免泄漏。
   let controller: AbortController | null = null
@@ -181,6 +195,14 @@
           if (target) target.content += delta
           scrollToBottom()
         },
+        onReasoning: (delta) => {
+          // 思考型模型的推理过程，单独累积、单独展示，不混入答案。
+          reasoningByIndex.value = {
+            ...reasoningByIndex.value,
+            [assistantIndex]: (reasoningByIndex.value[assistantIndex] ?? '') + delta
+          }
+          scrollToBottom()
+        },
         onToolCall: (tcall) => {
           const list = toolsByIndex.value[assistantIndex] ?? []
           toolsByIndex.value = {
@@ -243,6 +265,7 @@
     cancelStream()
     messages.value = []
     toolsByIndex.value = {}
+    reasoningByIndex.value = {}
   }
 
   onBeforeUnmount(() => {
@@ -319,6 +342,21 @@
 
   .ai-chat-thinking {
     @apply text-g-500;
+  }
+
+  .ai-chat-reasoning {
+    @apply mb-2 text-xs text-g-500;
+  }
+
+  .ai-chat-reasoning summary {
+    @apply cursor-pointer select-none;
+  }
+
+  .ai-chat-reasoning-body {
+    @apply mt-1 pl-2 max-h-40 overflow-y-auto border-l-2 border-g-300;
+
+    word-break: break-word;
+    white-space: pre-wrap;
   }
 
   /* Markdown 渲染内容（v-html，不受 scoped 影响，需用 :deep） */

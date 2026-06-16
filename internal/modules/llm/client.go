@@ -232,8 +232,11 @@ type streamChatRequest struct {
 type streamChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content   string `json:"content"`
-			ToolCalls []struct {
+			Content string `json:"content"`
+			// ReasoningContent 是「思考型」模型（如 Qwen3 thinking、DeepSeek-R1）的推理过程增量，
+			// 与最终答案 Content 分开下发；需单独流式展示，否则思考期间前端会长时间无任何输出。
+			ReasoningContent string `json:"reasoning_content"`
+			ToolCalls        []struct {
 				Index    int    `json:"index"`
 				ID       string `json:"id"`
 				Type     string `json:"type"`
@@ -251,10 +254,10 @@ type streamChunk struct {
 const streamScannerBuffer = 1 << 20 // 1MB
 
 // ChatStream 发送一次带工具定义的流式对话，按 SSE 分片累积内容与工具调用。
-// 每收到一段非空 content 增量即回调 onContent（onContent 为 nil 时跳过）。
-// 返回的 Message 含累积的 Content 与按 index 组装的 ToolCalls，供调用方驱动工具循环。
-// HTTP 状态非 200 时先读取响应体并返回错误，不进入流式解析。
-func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Tool, onContent func(delta string)) (Message, error) {
+// 每段非空 content 增量回调 onContent；每段 reasoning_content（思考型模型的推理过程）回调 onReasoning。
+// 两个回调均可为 nil。返回的 Message 仅含最终答案 Content 与按 index 组装的 ToolCalls
+// （reasoning 是过程性内容，不计入 Content、不回灌历史）。HTTP 非 200 时先读体返回错误。
+func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Tool, onContent, onReasoning func(delta string)) (Message, error) {
 	reqBody := streamChatRequest{
 		Model:       c.model,
 		Messages:    messages,
@@ -314,6 +317,9 @@ func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Too
 			continue
 		}
 		for _, choice := range chunk.Choices {
+			if choice.Delta.ReasoningContent != "" && onReasoning != nil {
+				onReasoning(choice.Delta.ReasoningContent)
+			}
 			if choice.Delta.Content != "" {
 				content.WriteString(choice.Delta.Content)
 				if onContent != nil {
