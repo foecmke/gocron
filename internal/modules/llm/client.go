@@ -32,15 +32,19 @@ type Client struct {
 	apiKey  string
 	model   string
 	http    *http.Client
+	// streamHTTP 专用于流式：不设总超时（http.Client.Timeout 会把"读完整个响应体"也计时，
+	// 慢模型的长流式输出会被中途掐断）。流式的取消/超时完全交给调用方传入的 ctx 控制。
+	streamHTTP *http.Client
 }
 
 // New 创建客户端。baseURL 形如 https://api.openai.com/v1。
 func New(baseURL, apiKey, model string) *Client {
 	return &Client{
-		baseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
-		apiKey:  strings.TrimSpace(apiKey),
-		model:   strings.TrimSpace(model),
-		http:    &http.Client{Timeout: defaultTimeout},
+		baseURL:    strings.TrimRight(strings.TrimSpace(baseURL), "/"),
+		apiKey:     strings.TrimSpace(apiKey),
+		model:      strings.TrimSpace(model),
+		streamHTTP: &http.Client{},
+		http:       &http.Client{Timeout: defaultTimeout},
 	}
 }
 
@@ -278,7 +282,7 @@ func (c *Client) ChatStream(ctx context.Context, messages []Message, tools []Too
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := c.http.Do(req)
+	resp, err := c.streamHTTP.Do(req)
 	if err != nil {
 		return Message{}, fmt.Errorf("call llm: %w", err)
 	}

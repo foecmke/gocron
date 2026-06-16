@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	chatTimeout   = 120 * time.Second
+	// 多步工具流 + 本地慢模型每轮思考都很久，整轮对话给较宽裕的预算；
+	// 用户可随时用前端「停止」按钮中断（会取消请求 ctx，连带停掉后端调用）。
+	chatTimeout   = 10 * time.Minute
 	maxIterations = 6
 )
 
