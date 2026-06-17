@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	AppVersion           = "1.6.4"
+	AppVersion           = "1.6.5"
 	BuildDate, GitCommit string
 
 	// leaderElection 全局选举实例，用于 graceful shutdown 时释放锁
