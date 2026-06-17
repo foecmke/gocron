@@ -28,8 +28,14 @@ features:
     details: Comprehensive task execution logs with automatic cleanup and archiving
   - icon: 🌐
     title: Distributed
-    details: Supports multi-node deployment and task distribution
+    details: Multi-node deployment with database-lock leader election and automatic failover
+  - icon: 🤖
+    title: AI Assist
+    details: Natural-language to cron, failure diagnosis, and an AI ops chat — any OpenAI-compatible model
+  - icon: 🔌
+    title: MCP Support
+    details: Manage tasks from AI clients (Claude Desktop, Cursor) via the Model Context Protocol
   - icon: 🔔
     title: Notifications
-    details: Multiple notification methods for task execution failures
+    details: Email, Slack, and Webhook notifications for task execution
 ---

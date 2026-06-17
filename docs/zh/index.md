@@ -28,8 +28,14 @@ features:
     details: 完善的任务执行日志，支持自动清理和归档
   - icon: 🌐
     title: 分布式
-    details: 支持多节点部署，任务分发执行
+    details: 多节点部署，基于数据库锁的 Leader 选举与秒级自动故障转移
+  - icon: 🤖
+    title: AI 辅助
+    details: 自然语言转 cron、失败诊断、AI 运维助手对话——支持任意 OpenAI 兼容模型
+  - icon: 🔌
+    title: MCP 支持
+    details: 通过 Model Context Protocol 从 AI 客户端(Claude Desktop、Cursor)管理任务
   - icon: 🔔
     title: 通知提醒
-    details: 任务执行失败时支持多种方式通知
+    details: 支持邮件、Slack、Webhook 通知
 ---
