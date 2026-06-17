@@ -17,3 +17,8 @@ overrides:
   defu: '>=6.1.5'
   # esbuild <0.28.1：两条 advisory（dev server 任意文件读取 / 二进制完整性校验缺失）
   esbuild: '>=0.28.1'
+  # ajv ReDoS（仅 $data 选项触发，工具链未用）：只定向升 commitlint 的 ajv8，
+  # 不动 eslint 自带的 ajv6（eslint 强依赖 ajv6 API，升 8 会直接跑不起来）。
+  '@commitlint/config-validator>ajv': '>=8.18.0'
+  # @babel/core 任意文件读取（vite-plugin-vue-devtools 间接依赖）
+  '@babel/core': '>=7.29.6'
