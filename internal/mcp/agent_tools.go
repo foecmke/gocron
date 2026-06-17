@@ -52,6 +52,14 @@ func AgentToolDefs() []llm.Tool {
 				"page_size": {"type": "integer", "description": "Items per page, default 20, max 100"}
 			}
 		}`),
+		tool("search_docs", "Search the official gocron documentation for how-to / concept / 'does it support X' questions. Use this before answering such questions instead of guessing.", `{
+			"type": "object",
+			"properties": {
+				"query": {"type": "string", "description": "Keywords or question to look up in the docs"},
+				"top_n": {"type": "integer", "description": "Max snippets to return, default 4, max 8"}
+			},
+			"required": ["query"]
+		}`),
 		tool("run_task", "Trigger an immediate manual run of a task by id (requires admin).", `{
 			"type": "object",
 			"properties": {
@@ -104,6 +112,12 @@ func CallTool(name string, argsJSON []byte, isAdmin bool) (any, error) {
 			return nil, err
 		}
 		return listTemplates(in)
+	case "search_docs":
+		var in searchDocsInput
+		if err := unmarshalArgs(argsJSON, &in); err != nil {
+			return nil, err
+		}
+		return searchDocs(in)
 	case "run_task":
 		if !isAdmin {
 			return nil, errAdminRequired

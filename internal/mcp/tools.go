@@ -8,6 +8,7 @@ import (
 
 	"github.com/gocronx-team/gocron/internal/models"
 	"github.com/gocronx-team/gocron/internal/modules/diagnosis"
+	"github.com/gocronx-team/gocron/internal/modules/docsearch"
 	"github.com/gocronx-team/gocron/internal/modules/llm"
 	"github.com/gocronx-team/gocron/internal/service"
 )
@@ -164,6 +165,26 @@ func listHosts() (listHostsOutput, error) {
 		return listHostsOutput{}, err
 	}
 	return listHostsOutput{Hosts: hosts}, nil
+}
+
+// ── search_docs ───────────────────────────────────────────────────────────────
+
+type searchDocsInput struct {
+	Query string `json:"query" jsonschema:"要在 gocron 官方文档中检索的关键词或问题"`
+	TopN  int    `json:"top_n,omitempty" jsonschema:"返回最相关的片段数，默认 4，最大 8"`
+}
+
+type searchDocsOutput struct {
+	Results []docsearch.Chunk `json:"results"`
+}
+
+// searchDocs 在内嵌的 gocron 文档里做离线关键词检索，供模型回答"怎么用/是否支持"类问题。
+func searchDocs(in searchDocsInput) (searchDocsOutput, error) {
+	n := in.TopN
+	if n > 8 {
+		n = 8
+	}
+	return searchDocsOutput{Results: docsearch.Search(in.Query, n)}, nil
 }
 
 // ── list_templates ────────────────────────────────────────────────────────────

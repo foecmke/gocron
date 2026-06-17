@@ -96,6 +96,14 @@ func registerTools(s *mcp.Server, u *authUser) {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "search_docs",
+		Description: "检索 gocron 官方文档，用于回答“怎么用/是否支持”类问题。",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, in searchDocsInput) (*mcp.CallToolResult, searchDocsOutput, error) {
+		out, err := searchDocs(in)
+		return nil, out, err
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "run_task",
 		Description: "立即手动触发执行一个任务（需要管理员令牌）。",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, in runTaskInput) (*mcp.CallToolResult, runTaskOutput, error) {
