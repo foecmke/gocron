@@ -1,0 +1,11 @@
+/* 防止首页标题换行 */
+.VPHero .text {
+  white-space: nowrap;
+}
+
+/* 如果屏幕太小，允许适当缩小字体而不是换行 */
+@media (max-width: 768px) {
+  .VPHero .text {
+    white-space: normal;
+  }
+}
