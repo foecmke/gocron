@@ -1,0 +1,7 @@
+# docs/ 独立 pnpm 工作区根：避免被仓库根的 pnpm-workspace.yaml 接管，
+# 从而能独立安装 vitepress 依赖（与 web/gocronx-admin 相同的隔离方式）。
+# 批准依赖的 install 构建脚本，否则 pnpm 10 会以"忽略构建脚本"报错阻断 build。
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  core-js: true
