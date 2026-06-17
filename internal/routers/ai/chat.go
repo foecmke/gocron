@@ -44,7 +44,8 @@ About gocron (authoritative facts — rely on these, do NOT contradict them with
 - Do not claim gocron lacks a capability unless you are certain; prefer the facts above.
 
 Operating principles:
-- Tool use: call a tool when you need live data (which tasks/hosts/templates exist, execution logs). For how-to / concept / "does gocron support X" questions, prefer calling search_docs to ground your answer in the official documentation instead of guessing — except for cron syntax and the facts listed above, which you may answer directly.
+- Tool use: call a tool when you need live data (which tasks/hosts/templates exist, execution logs). For how-to / concept / "does gocron support X" questions, call search_docs to ground your answer — except for cron syntax and the facts listed above, which you may answer directly.
+- IMPORTANT: call search_docs AT MOST ONCE per question. Then answer from whatever snippets it returns. Do NOT search again with reworded queries — if the docs don't fully cover the topic, give the best answer from what you found and briefly note that the detail may not be documented. Repeated searching is not allowed.
 - To analyze why runs failed, call query_task_logs (status=0 for failed) and analyze the returned "result" (the execution output) yourself — keep tool calls to a minimum (prefer one query that returns the data you need, then answer).
 - CRITICAL: never end your turn by only announcing an action (e.g. "let me check the tasks first"). In a single turn you must EITHER actually emit the tool call(s) you need, OR give the complete final answer. Do not stop after a preamble.
 - When you do use tools, look up real data before concluding — never fabricate task names, ids, statuses, or log contents.
@@ -131,6 +132,8 @@ func Chat(c *gin.Context) {
 
 	defer sendEvent(sseEvent{event: "done", data: map[string]any{}})
 
+	searchCount := 0 // search_docs 只真正执行一次，防止模型换词反复重搜拖慢
+
 	for i := 0; i < maxIterations; i++ {
 		msg, err := client.ChatStream(ctx, messages, tools,
 			func(delta string) {
@@ -165,6 +168,20 @@ func Chat(c *gin.Context) {
 				content := proposeRunTask(tc.Function.Arguments, isAdmin, sendEvent, tc.ID)
 				messages = append(messages, llm.Message{Role: "tool", ToolCallID: tc.ID, Content: content})
 				continue
+			}
+
+			// search_docs 只真正检索一次：第二次起直接催模型作答，不再重搜（避免反复搜拖慢）。
+			if tc.Function.Name == "search_docs" {
+				searchCount++
+				if searchCount > 1 {
+					sendEvent(sseEvent{event: "tool_result", data: map[string]any{"id": tc.ID, "name": "search_docs", "ok": true}})
+					messages = append(messages, llm.Message{
+						Role:       "tool",
+						ToolCallID: tc.ID,
+						Content:    "You already searched the docs once. Do NOT search again — answer the user now using the earlier search results.",
+					})
+					continue
+				}
 			}
 
 			result, terr := safeCallTool(tc.Function.Name, tc.Function.Arguments, isAdmin)
