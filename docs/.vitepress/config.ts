@@ -37,6 +37,7 @@ export default defineConfig({
                 { text: 'Scheduled Tasks', link: '/en/guide/scheduled-tasks' },
                 { text: 'Agent Auto-Registration', link: '/en/guide/agent-registration' },
                 { text: 'Log Management', link: '/en/guide/log-management' },
+                { text: 'AI Features', link: '/en/guide/ai-features' },
                 { text: 'API Documentation', link: '/en/guide/api' },
               ]
             },
@@ -107,6 +108,7 @@ export default defineConfig({
                 { text: '定时任务', link: '/zh/guide/scheduled-tasks' },
                 { text: 'Agent 自动注册', link: '/zh/guide/agent-registration' },
                 { text: '日志管理', link: '/zh/guide/log-management' },
+                { text: 'AI 功能', link: '/zh/guide/ai-features' },
                 { text: 'API 文档', link: '/zh/guide/api' },
               ]
             },
