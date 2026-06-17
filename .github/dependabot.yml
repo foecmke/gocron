@@ -39,6 +39,19 @@ updates:
       npm-dev-deps:
         patterns: ["*"]
 
+  - package-ecosystem: npm
+    directory: /docs
+    schedule:
+      interval: weekly
+    groups:
+      docs-deps:
+        patterns: ["*"]
+    # 文档站基于 VitePress 1.6.3（仅支持 vite 5）。vitepress/vite 等大版本升级会破坏
+    # 文档构建，需协同升级，故不收大版本；安全补丁通过 pnpm-workspace.yaml 的 overrides 处理。
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: docker
     directory: /
     schedule:
