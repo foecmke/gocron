@@ -1,0 +1,18 @@
+# Spam keyword list for issue-triage workflow.
+# One keyword or phrase per line. Case-insensitive substring match.
+# Lines starting with "#" and blank lines are ignored.
+#
+# An issue whose title or body contains ANY of these will be
+# auto-labeled "spam", closed, and locked.
+#
+# Fill in your own terms below (ads / gambling / adult / crypto-scam /
+# contact-harvesting phrases, etc.). Keep entries specific to avoid
+# false positives on real bug reports.
+#
+# Examples of CATEGORIES to cover (replace with actual terms in your language):
+#   - gambling / casino terms
+#   - adult-content terms
+#   - crypto airdrop / giveaway scams
+#   - "add my contact" / paid-boosting solicitations
+#
+# --- add one term per line below this line ---

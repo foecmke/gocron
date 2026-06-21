@@ -14,6 +14,8 @@ body:
           required: true
         - label: I have confirmed the bug exists on the latest release.
           required: true
+        - label: This is a reproducible technical issue, not a complaint, opinion, or community dispute. (这是可复现的技术问题，不是吐槽、质疑或社区争议。)
+          required: true
 
   - type: textarea
     id: description
