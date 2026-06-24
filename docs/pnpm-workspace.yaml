@@ -7,9 +7,8 @@ allowBuilds:
   core-js: true
 
 # 安全 override：把 vitepress 构建工具链里有漏洞的传递依赖锁到已修复版本。
-# 均为同大版本补丁，不超出 vitepress 1.6.3 支持的范围（vite 仍为 5.x）。
-# 注：仍残留的 esbuild / vite 漏洞均为「本地 dev server」专属，已修复版需 vite 6+，
-# 但 vitepress 1.6.3 只支持 vite 5，故不强升（静态产物与运行时不受影响）。
+# vite/esbuild 的修复仅在 vite 6.4.3+ / esbuild 0.25.0+ 提供（5.x 无 backport），
+# 实测 vitepress 1.6.3 可正常基于 vite 6 构建静态文档，故强升以清除 Dependabot 告警。
 overrides:
   rollup: '>=4.59.0'
   picomatch: '>=2.3.2'
@@ -17,4 +16,5 @@ overrides:
   postcss: '>=8.5.10'
   mdast-util-to-hast: '>=13.2.1'
   preact: '>=10.26.10'
-  vite: '^5.4.21'
+  vite: '^6.4.3'
+  esbuild: '^0.25.0'
