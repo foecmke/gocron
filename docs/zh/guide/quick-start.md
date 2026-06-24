@@ -22,9 +22,140 @@
 - **生产环境推荐**：使用 MySQL 或 PostgreSQL，性能更好，支持分布式部署
 :::
 
-## Docker Compose 部署（推荐）
+## 部署方式怎么选
 
-使用 Docker 部署最简单快捷，适合快速体验和测试环境。
+| 场景 | 推荐方式 |
+|------|---------|
+| 生产环境、单机/少量机器 | **二进制 + systemd**（首选） |
+| 生产环境、Kubernetes 集群 | Helm Chart |
+| 本地快速体验、测试 | Docker Compose |
+
+gocron 编译为零依赖的静态单文件（纯 Go SQLite，无需 CGO），因此二进制部署最轻量、最贴合其形态，是生产单机部署的首选。
+
+## 二进制部署（生产环境推荐）
+
+适合生产环境，支持所有数据库（包括 SQLite）。
+
+### 下载安装包
+
+访问 [GitHub Releases](https://github.com/gocronx-team/gocron/releases) 下载最新版本的安装包。
+
+选择对应平台的包：
+- Linux: `gocron-linux-amd64.tar.gz` 或 `gocron-linux-arm64.tar.gz`
+- macOS: `gocron-darwin-amd64.tar.gz` 或 `gocron-darwin-arm64.tar.gz`
+- Windows: `gocron-windows-amd64.zip` 或 `gocron-windows-arm64.zip`
+
+### 快速启动
+
+```bash
+# 1. 解压安装包
+tar -xzf gocron-linux-amd64.tar.gz
+cd gocron-linux-amd64
+
+# 2. 启动服务（默认 SQLite，首次启动会自动创建配置与数据目录）
+./gocron web
+
+# 3. 访问 Web 界面，按安装向导设置管理员账号
+# http://localhost:5920
+```
+
+::: tip 数据存放位置
+gocron 以**二进制所在目录**为根：配置在 `<二进制目录>/.gocron/conf/app.ini`，
+日志在 `<二进制目录>/.gocron/log/`，SQLite 数据库默认在 `<二进制目录>/data/gocron.db`。
+升级时只需替换二进制，数据目录保持不动即可。
+:::
+
+### 配置为 systemd 服务（推荐）
+
+生产环境建议用 systemd 托管进程，实现开机自启、崩溃自动重启与日志接管。
+
+```bash
+# 1. 将二进制安装到固定目录
+sudo mkdir -p /opt/gocron
+sudo cp gocron /opt/gocron/
+
+# 2. 创建专用运行用户（无登录权限）
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin gocron || true
+sudo chown -R gocron:gocron /opt/gocron
+```
+
+创建 `/etc/systemd/system/gocron.service`：
+
+```ini
+[Unit]
+Description=gocron scheduled task manager
+After=network.target
+
+[Service]
+Type=simple
+User=gocron
+Group=gocron
+WorkingDirectory=/opt/gocron
+ExecStart=/opt/gocron/gocron web
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启用并启动：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now gocron
+sudo systemctl status gocron      # 查看运行状态
+journalctl -u gocron -f           # 实时查看日志
+```
+
+数据会持久化在 `/opt/gocron/.gocron/` 与 `/opt/gocron/data/`，升级时替换 `/opt/gocron/gocron` 后 `sudo systemctl restart gocron` 即可。
+
+### 配置数据库
+
+gocron 支持三种数据库，根据需要选择：
+
+#### SQLite（默认）
+
+无需配置，开箱即用。适合小型部署和测试环境。
+
+#### MySQL
+
+编辑 `.gocron/conf/app.ini`：
+
+```ini
+[db]
+engine = mysql
+host = 127.0.0.1
+port = 3306
+user = root
+password = your_password
+database = gocron
+charset = utf8mb4
+```
+
+#### PostgreSQL
+
+编辑 `.gocron/conf/app.ini`：
+
+```ini
+[db]
+engine = postgres
+host = 127.0.0.1
+port = 5432
+user = postgres
+password = your_password
+database = gocron
+```
+
+## Docker Compose 部署（快速体验 / 测试）
+
+适合本地快速体验与测试环境。
+
+::: warning 注意
+当前仓库的 `docker-compose.yml` 使用 `build:` **从源码现场构建镜像**，
+执行 `docker-compose up -d` 需要先克隆完整仓库并在本地完成前后端编译（耗时较长）。
+生产环境请优先使用上面的「二进制 + systemd」方式。
+:::
 
 ### 步骤
 
@@ -54,6 +185,12 @@ docker-compose up -d
 ## Kubernetes 部署（Helm）
 
 使用 Helm Chart 一键部署到 Kubernetes 集群。
+
+::: warning 镜像版本提示
+Helm Chart 默认使用 Docker Hub 镜像 `gocronx/gocron`，tag 默认取 Chart 的 appVersion。
+该镜像的发布目前可能滞后于 GitHub Releases，安装前请先确认目标 tag 是否存在，
+必要时通过 `--set image.tag=<已存在的 tag>` 显式指定，或自行构建并推送镜像。
+:::
 
 ### 添加 Helm 仓库
 
@@ -100,74 +237,6 @@ helm install gocron gocron/gocron \
 ::: tip 提示
 完整的 Helm 配置项请参考 [Kubernetes 部署](./kubernetes) 章节。
 :::
-
-## 二进制部署（生产环境推荐）
-
-适合生产环境，支持所有数据库（包括 SQLite）。
-
-### 下载安装包
-
-访问 [GitHub Releases](https://github.com/gocronx-team/gocron/releases) 下载最新版本的安装包。
-
-选择对应平台的包：
-- Linux: `gocron-linux-amd64.tar.gz` 或 `gocron-linux-arm64.tar.gz`
-- macOS: `gocron-darwin-amd64.tar.gz` 或 `gocron-darwin-arm64.tar.gz`
-- Windows: `gocron-windows-amd64.zip` 或 `gocron-windows-arm64.zip`
-
-### 安装步骤
-
-```bash
-# 1. 解压安装包
-tar -xzf gocron-linux-amd64.tar.gz
-cd gocron-linux-amd64
-
-# 2. 配置数据库（可选）
-# 编辑 .gocron/conf/app.ini
-# 默认使用 SQLite，无需配置
-
-# 3. 启动服务
-./gocron web
-
-# 4. 访问 Web 界面
-# http://localhost:5920
-```
-
-### 配置数据库
-
-gocron 支持三种数据库，根据需要选择：
-
-#### SQLite（默认）
-
-无需配置，开箱即用。适合小型部署和测试环境。
-
-#### MySQL
-
-编辑 `.gocron/conf/app.ini`：
-
-```ini
-[db]
-engine = mysql
-host = 127.0.0.1
-port = 3306
-user = root
-password = your_password
-database = gocron
-charset = utf8mb4
-```
-
-#### PostgreSQL
-
-编辑 `.gocron/conf/app.ini`：
-
-```ini
-[db]
-engine = postgres
-host = 127.0.0.1
-port = 5432
-user = postgres
-password = your_password
-database = gocron
-```
 
 ## 开发环境
 

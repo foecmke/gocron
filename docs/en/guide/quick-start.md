@@ -22,9 +22,140 @@ This guide will help you quickly deploy and run gocron.
 - **Production Recommendation**: Use MySQL or PostgreSQL for better performance and distributed deployment support
 :::
 
-## Docker Compose Deployment (Recommended)
+## Choosing a Deployment Method
 
-Docker deployment is the simplest and fastest way, suitable for quick testing and evaluation.
+| Scenario | Recommended |
+|----------|-------------|
+| Production, single / few machines | **Binary + systemd** (preferred) |
+| Production, Kubernetes cluster | Helm Chart |
+| Local evaluation, testing | Docker Compose |
+
+gocron compiles into a single, dependency-free static binary (pure Go SQLite, no CGO), so binary deployment is the lightest and best-fitting option for single-machine production.
+
+## Binary Deployment (Production Recommended)
+
+Suitable for production environments, supports all databases (including SQLite).
+
+### Download Package
+
+Visit [GitHub Releases](https://github.com/gocronx-team/gocron/releases) to download the latest version.
+
+Choose the package for your platform:
+- Linux: `gocron-linux-amd64.tar.gz` or `gocron-linux-arm64.tar.gz`
+- macOS: `gocron-darwin-amd64.tar.gz` or `gocron-darwin-arm64.tar.gz`
+- Windows: `gocron-windows-amd64.zip` or `gocron-windows-arm64.zip`
+
+### Quick Start
+
+```bash
+# 1. Extract the package
+tar -xzf gocron-linux-amd64.tar.gz
+cd gocron-linux-amd64
+
+# 2. Start service (SQLite by default; config and data dirs are created on first run)
+./gocron web
+
+# 3. Open the web interface and set the admin account in the install wizard
+# http://localhost:5920
+```
+
+::: tip Data location
+gocron is rooted at the **binary's own directory**: config at `<binary-dir>/.gocron/conf/app.ini`,
+logs at `<binary-dir>/.gocron/log/`, and the SQLite database at `<binary-dir>/data/gocron.db` by default.
+To upgrade, just replace the binary — the data directory stays untouched.
+:::
+
+### Run as a systemd service (recommended)
+
+For production, run gocron under systemd for auto-start on boot, automatic restart on crash, and log capture.
+
+```bash
+# 1. Install the binary to a fixed directory
+sudo mkdir -p /opt/gocron
+sudo cp gocron /opt/gocron/
+
+# 2. Create a dedicated, non-login user
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin gocron || true
+sudo chown -R gocron:gocron /opt/gocron
+```
+
+Create `/etc/systemd/system/gocron.service`:
+
+```ini
+[Unit]
+Description=gocron scheduled task manager
+After=network.target
+
+[Service]
+Type=simple
+User=gocron
+Group=gocron
+WorkingDirectory=/opt/gocron
+ExecStart=/opt/gocron/gocron web
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now gocron
+sudo systemctl status gocron      # check status
+journalctl -u gocron -f           # follow logs
+```
+
+Data persists under `/opt/gocron/.gocron/` and `/opt/gocron/data/`. To upgrade, replace `/opt/gocron/gocron` and run `sudo systemctl restart gocron`.
+
+### Database Configuration
+
+gocron supports three databases, choose according to your needs:
+
+#### SQLite (Default)
+
+No configuration needed, works out of the box. Suitable for small deployments and testing.
+
+#### MySQL
+
+Edit `.gocron/conf/app.ini`:
+
+```ini
+[db]
+engine = mysql
+host = 127.0.0.1
+port = 3306
+user = root
+password = your_password
+database = gocron
+charset = utf8mb4
+```
+
+#### PostgreSQL
+
+Edit `.gocron/conf/app.ini`:
+
+```ini
+[db]
+engine = postgres
+host = 127.0.0.1
+port = 5432
+user = postgres
+password = your_password
+database = gocron
+```
+
+## Docker Compose Deployment (Evaluation / Testing)
+
+Suitable for local evaluation and testing.
+
+::: warning Note
+The repository's `docker-compose.yml` uses `build:` to **build the image from source on the spot**,
+so `docker-compose up -d` requires cloning the full repo and compiling the frontend and backend locally (slow).
+For production, prefer the "Binary + systemd" method above.
+:::
 
 ### Steps
 
@@ -54,6 +185,12 @@ docker-compose up -d
 ## Kubernetes Deployment (Helm)
 
 Deploy to Kubernetes clusters with a single command using Helm Chart.
+
+::: warning Image version note
+The Helm Chart defaults to the Docker Hub image `gocronx/gocron`, with the tag defaulting to the Chart's appVersion.
+Image publishing may currently lag behind GitHub Releases, so verify the target tag exists before installing —
+set it explicitly with `--set image.tag=<existing-tag>` if needed, or build and push your own image.
+:::
 
 ### Add Helm Repository
 
@@ -100,74 +237,6 @@ helm install gocron gocron/gocron \
 ::: tip Tip
 For full Helm configuration options, see [Kubernetes Deployment](./kubernetes).
 :::
-
-## Binary Deployment (Production Recommended)
-
-Suitable for production environments, supports all databases (including SQLite).
-
-### Download Package
-
-Visit [GitHub Releases](https://github.com/gocronx-team/gocron/releases) to download the latest version.
-
-Choose the package for your platform:
-- Linux: `gocron-linux-amd64.tar.gz` or `gocron-linux-arm64.tar.gz`
-- macOS: `gocron-darwin-amd64.tar.gz` or `gocron-darwin-arm64.tar.gz`
-- Windows: `gocron-windows-amd64.zip` or `gocron-windows-arm64.zip`
-
-### Installation Steps
-
-```bash
-# 1. Extract the package
-tar -xzf gocron-linux-amd64.tar.gz
-cd gocron-linux-amd64
-
-# 2. Configure database (optional)
-# Edit .gocron/conf/app.ini
-# Uses SQLite by default, no configuration needed
-
-# 3. Start service
-./gocron web
-
-# 4. Access web interface
-# http://localhost:5920
-```
-
-### Database Configuration
-
-gocron supports three databases, choose according to your needs:
-
-#### SQLite (Default)
-
-No configuration needed, works out of the box. Suitable for small deployments and testing.
-
-#### MySQL
-
-Edit `.gocron/conf/app.ini`:
-
-```ini
-[db]
-engine = mysql
-host = 127.0.0.1
-port = 3306
-user = root
-password = your_password
-database = gocron
-charset = utf8mb4
-```
-
-#### PostgreSQL
-
-Edit `.gocron/conf/app.ini`:
-
-```ini
-[db]
-engine = postgres
-host = 127.0.0.1
-port = 5432
-user = postgres
-password = your_password
-database = gocron
-```
 
 ## Development Environment
 
