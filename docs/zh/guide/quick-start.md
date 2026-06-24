@@ -26,7 +26,7 @@
 
 | 场景 | 推荐方式 |
 |------|---------|
-| 生产环境、单机/少量机器 | **二进制 + systemd**（首选） |
+| 生产环境、单机/少量机器 | **二进制**（首选） |
 | 生产环境、Kubernetes 集群 | Helm Chart |
 | 本地快速体验、测试 | Docker Compose |
 
@@ -65,50 +65,9 @@ gocron 以**二进制所在目录**为根：配置在 `<二进制目录>/.gocron
 升级时只需替换二进制，数据目录保持不动即可。
 :::
 
-### 配置为 systemd 服务（推荐）
+### 进程守护
 
-生产环境建议用 systemd 托管进程，实现开机自启、崩溃自动重启与日志接管。
-
-```bash
-# 1. 将二进制安装到固定目录
-sudo mkdir -p /opt/gocron
-sudo cp gocron /opt/gocron/
-
-# 2. 创建专用运行用户（无登录权限）
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin gocron || true
-sudo chown -R gocron:gocron /opt/gocron
-```
-
-创建 `/etc/systemd/system/gocron.service`：
-
-```ini
-[Unit]
-Description=gocron scheduled task manager
-After=network.target
-
-[Service]
-Type=simple
-User=gocron
-Group=gocron
-WorkingDirectory=/opt/gocron
-ExecStart=/opt/gocron/gocron web
-Restart=on-failure
-RestartSec=5s
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启用并启动：
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now gocron
-sudo systemctl status gocron      # 查看运行状态
-journalctl -u gocron -f           # 实时查看日志
-```
-
-数据会持久化在 `/opt/gocron/.gocron/` 与 `/opt/gocron/data/`，升级时替换 `/opt/gocron/gocron` 后 `sudo systemctl restart gocron` 即可。
+生产环境建议用你习惯的进程管理工具（如 systemd、supervisor、pm2 等）托管 `gocron web` 进程，实现开机自启与崩溃自动重启。具体配置按所选工具的文档操作即可。升级时替换二进制并重启进程即可，数据目录保持不动。
 
 ### 配置数据库
 

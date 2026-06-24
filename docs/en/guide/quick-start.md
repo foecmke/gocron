@@ -26,7 +26,7 @@ This guide will help you quickly deploy and run gocron.
 
 | Scenario | Recommended |
 |----------|-------------|
-| Production, single / few machines | **Binary + systemd** (preferred) |
+| Production, single / few machines | **Binary** (preferred) |
 | Production, Kubernetes cluster | Helm Chart |
 | Local evaluation, testing | Docker Compose |
 
@@ -65,50 +65,9 @@ logs at `<binary-dir>/.gocron/log/`, and the SQLite database at `<binary-dir>/da
 To upgrade, just replace the binary — the data directory stays untouched.
 :::
 
-### Run as a systemd service (recommended)
+### Keeping the process running
 
-For production, run gocron under systemd for auto-start on boot, automatic restart on crash, and log capture.
-
-```bash
-# 1. Install the binary to a fixed directory
-sudo mkdir -p /opt/gocron
-sudo cp gocron /opt/gocron/
-
-# 2. Create a dedicated, non-login user
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin gocron || true
-sudo chown -R gocron:gocron /opt/gocron
-```
-
-Create `/etc/systemd/system/gocron.service`:
-
-```ini
-[Unit]
-Description=gocron scheduled task manager
-After=network.target
-
-[Service]
-Type=simple
-User=gocron
-Group=gocron
-WorkingDirectory=/opt/gocron
-ExecStart=/opt/gocron/gocron web
-Restart=on-failure
-RestartSec=5s
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now gocron
-sudo systemctl status gocron      # check status
-journalctl -u gocron -f           # follow logs
-```
-
-Data persists under `/opt/gocron/.gocron/` and `/opt/gocron/data/`. To upgrade, replace `/opt/gocron/gocron` and run `sudo systemctl restart gocron`.
+For production, run the `gocron web` process under whatever process manager you prefer (systemd, supervisor, pm2, etc.) for auto-start on boot and automatic restart on crash — configure it per that tool's documentation. To upgrade, replace the binary and restart the process; the data directory stays untouched.
 
 ### Database Configuration
 
