@@ -112,7 +112,7 @@ Suitable for local evaluation and testing.
 
 ::: warning Note
 The repository's `docker-compose.yml` uses `build:` to **build the image from source on the spot**,
-so `docker-compose up -d` requires cloning the full repo and compiling the frontend and backend locally (slow).
+so `docker compose up -d` requires cloning the full repo and compiling the frontend and backend locally (slow).
 For production, prefer the "Binary + systemd" method above.
 :::
 
@@ -124,7 +124,7 @@ git clone https://github.com/gocronx-team/gocron.git
 cd gocron
 
 # 2. Start services (automatically builds image)
-docker-compose up -d
+docker compose up -d
 
 # 3. Access web interface
 # http://localhost:5920

@@ -31,9 +31,9 @@ Full documentation is available at: **[document](https://gocron-docs.pages.dev/e
 - **Log Management**: Complete execution logs with auto-cleanup
 - **Notifications**: Email, Slack, Webhook support
 
-## 🚀 Quick Start (Docker)
+## 🚀 Quick Start
 
-The easiest way to deploy is using Docker Compose:
+The fastest way to try gocron is Docker Compose (builds the image from source locally):
 
 ```bash
 # 1. Clone the project
@@ -41,13 +41,13 @@ git clone https://github.com/gocronx-team/gocron.git
 cd gocron
 
 # 2. Start services
-docker-compose up -d
+docker compose up -d
 
 # 3. Access Web Interface
 # http://localhost:5920
 ```
 
-For more deployment methods (Binary, Development), please refer to the [Installation Guide](https://gocron-docs.pages.dev/en/guide/quick-start).
+> For production, binary deployment is recommended. See the [Installation Guide](https://gocron-docs.pages.dev/en/guide/quick-start) for all methods (Binary, Docker, Kubernetes, Development).
 
 ## 🔷 High Availability (Optional)
 

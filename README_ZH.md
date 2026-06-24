@@ -31,9 +31,9 @@
 - **日志管理**：完整的任务执行日志，支持自动清理
 - **消息通知**：支持邮件、Slack、Webhook 等多种通知方式
 
-## 🚀 快速开始 (Docker)
+## 🚀 快速开始
 
-最简单的部署方式是使用 Docker Compose：
+想快速体验，用 Docker Compose 最快（会在本地从源码构建镜像）：
 
 ```bash
 # 1. 克隆项目
@@ -41,13 +41,13 @@ git clone https://github.com/gocronx-team/gocron.git
 cd gocron
 
 # 2. 启动服务
-docker-compose up -d
+docker compose up -d
 
 # 3. 访问 Web 界面
 # http://localhost:5920
 ```
 
-更多部署方式（二进制部署、开发环境）请查看 [安装部署指南](https://gocron-docs.pages.dev/zh/guide/quick-start)。
+> 生产环境推荐使用二进制部署。各部署方式（二进制、Docker、Kubernetes、开发环境）详见 [安装部署指南](https://gocron-docs.pages.dev/zh/guide/quick-start)。
 
 ## 🔷 高可用部署（可选）
 

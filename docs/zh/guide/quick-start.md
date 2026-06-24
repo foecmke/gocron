@@ -112,7 +112,7 @@ database = gocron
 
 ::: warning 注意
 当前仓库的 `docker-compose.yml` 使用 `build:` **从源码现场构建镜像**，
-执行 `docker-compose up -d` 需要先克隆完整仓库并在本地完成前后端编译（耗时较长）。
+执行 `docker compose up -d` 需要先克隆完整仓库并在本地完成前后端编译（耗时较长）。
 生产环境请优先使用上面的「二进制 + systemd」方式。
 :::
 
@@ -124,7 +124,7 @@ git clone https://github.com/gocronx-team/gocron.git
 cd gocron
 
 # 2. 启动服务（自动构建镜像）
-docker-compose up -d
+docker compose up -d
 
 # 3. 访问 Web 界面
 # http://localhost:5920
