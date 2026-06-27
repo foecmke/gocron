@@ -23,6 +23,7 @@ export interface UserStoreParams {
   name: string
   email: string
   password?: string
+  confirm_password?: string
   is_admin?: number
 }
 
@@ -68,7 +69,11 @@ export function fetchUserStore(params: UserStoreParams) {
   if (params.id) form.append('id', String(params.id))
   form.append('name', params.name)
   form.append('email', params.email)
-  if (params.password) form.append('password', params.password)
+  if (params.password) {
+    form.append('password', params.password)
+    // Backend requires confirm_password on create.
+    form.append('confirm_password', params.confirm_password ?? params.password)
+  }
   if (params.is_admin !== undefined) form.append('is_admin', String(params.is_admin))
 
   return request.post<null>({

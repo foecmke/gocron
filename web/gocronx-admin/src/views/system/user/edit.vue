@@ -313,7 +313,12 @@
       if (isEdit.value) body.append('id', String(form.id))
       body.append('name', form.name)
       body.append('email', form.email)
-      if (form.password) body.append('password', form.password)
+      if (form.password) {
+        body.append('password', form.password)
+        // Backend requires confirm_password on create; omitting it triggers
+        // a "Please enter password again" validation error.
+        body.append('confirm_password', form.confirm_password)
+      }
       body.append('is_admin', String(form.is_admin))
       body.append('status', String(form.status))
 
