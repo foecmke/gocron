@@ -7,7 +7,8 @@ export const hostRoutes: AppRouteRecord = {
   meta: {
     title: 'menus.host.title',
     icon: 'ri:server-line',
-    roles: ['R_SUPER', 'R_ADMIN']
+    // Normal users may view hosts (backend urlAuth allows /api/host, /api/host/all).
+    roles: ['R_SUPER', 'R_ADMIN', 'R_USER']
   },
   children: [
     {

@@ -17,7 +17,9 @@ export const taskRoutes: AppRouteRecord = {
   meta: {
     title: 'menus.task.title',
     icon: 'ri:calendar-check-line',
-    roles: ['R_SUPER', 'R_ADMIN']
+    // Normal users may view tasks, logs and templates (backend urlAuth allows
+    // /api/task, /api/task/log, /api/template, /api/statistics/overview).
+    roles: ['R_SUPER', 'R_ADMIN', 'R_USER']
   },
   children: [
     {
