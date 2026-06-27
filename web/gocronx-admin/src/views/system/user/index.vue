@@ -113,13 +113,17 @@
         {
           prop: 'operation',
           label: t('user.actions'),
-          width: 180,
+          // 宽度需容纳两列按钮（最长为"修改密码 / Change Password"），
+          // 否则按钮被压窄、文字会被裁切/被右侧 fixed 列遮挡。
+          width: 270,
           fixed: 'right',
           align: 'center',
           formatter: (row: UserListItem) =>
             h(
               'div',
               {
+                // 第一行：编辑 + 修改密码 并排等宽；第二行：删除占满整行
+                // （宽度 = 上面两个按钮之和）。
                 style:
                   'display:grid;grid-template-columns:1fr 1fr;gap:6px;justify-items:stretch;padding:4px 0'
               },
