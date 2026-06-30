@@ -4,10 +4,12 @@
 package utils
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -21,13 +23,85 @@ type Result struct {
 	err    error
 }
 
+// isTermux 通过检查 Termux 标志文件判断当前是否运行在 Termux (Android) 环境下。
+// 该文件是 Termux 安装后必定存在的，比检查 PREFIX 环境变量更可靠。
+func isTermux() bool {
+	_, err := os.Stat("/data/data/com.termux/files/usr/etc/termux")
+	return err == nil
+}
+
+// termuxPrefix 返回 Termux 的安装前缀路径。
+func termuxPrefix() string {
+	return "/data/data/com.termux/files/usr"
+}
+
+// init 在包加载时处理 Termux/Android 的 DNS 和 TLS CA 证书适配。
+func init() {
+	if !isTermux() {
+		return
+	}
+
+	// DNS：Termux 没有 /etc/resolv.conf，通过自定义 Resolver 接管 DNS 解析。
+	// 如果用户安装了 resolv.conf 则读取其中的 nameserver，否则使用 114.114.114.114。
+	resolvPath := termuxPrefix() + "/etc/resolv.conf"
+	dnsAddr := readResolvConfDNS(resolvPath)
+	net.DefaultResolver = &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			d := net.Dialer{}
+			return d.DialContext(ctx, network, dnsAddr)
+		},
+	}
+
+	// TLS CA：Termux 下没有标准 CA 证书路径，设置 SSL_CERT_FILE 指向 Termux 证书
+	setTermuxCACerts()
+}
+
+// readResolvConfDNS 解析 resolv.conf 文件，提取第一个 nameserver 并返回 ip:53。
+// 文件不存在或解析失败则回退到 114.114.114.114:53。
+func readResolvConfDNS(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return "114.114.114.114:53"
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if after, ok := strings.CutPrefix(line, "nameserver"); ok {
+			addr := strings.TrimSpace(after)
+			if addr != "" {
+				return net.JoinHostPort(addr, "53")
+			}
+		}
+	}
+	return "114.114.114.114:53"
+}
+
+// setTermuxCACerts 查找 Termux 的 CA 证书文件并设置 SSL_CERT_FILE 环境变量。
+// Go 的 crypto/x509 包读取该变量以加载 CA 证书池。
+func setTermuxCACerts() {
+	prefix := termuxPrefix()
+	paths := []string{
+		prefix + "/etc/tls/cert.pem",
+		prefix + "/etc/tls/ca-bundle.pem",
+		prefix + "/etc/ssl/certs/ca-certificates.crt",
+	}
+
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			_ = os.Setenv("SSL_CERT_FILE", p)
+			return
+		}
+	}
+}
+
 // detectBashPath 根据当前系统环境检测 bash 路径。
-// Termux (Android) 下 bash 位于 /data/data/com.termux/files/usr/bin/bash，
-// 标准 Linux / macOS 下为 /bin/bash。
+// Termux (Android) 下 bash 位于 termuxPrefix/bin/bash，标准 Linux / macOS 下为 /bin/bash。
 func detectBashPath() string {
-	termuxBash := "/data/data/com.termux/files/usr/bin/bash"
-	if _, err := os.Stat(termuxBash); err == nil {
-		return termuxBash
+	if isTermux() {
+		return termuxPrefix() + "/bin/bash"
 	}
 	return "/bin/bash"
 }

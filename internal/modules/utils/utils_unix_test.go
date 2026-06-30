@@ -40,16 +40,25 @@ func TestDetectBashPath(t *testing.T) {
 	}
 }
 
+func TestIsTermux(t *testing.T) {
+	result := isTermux()
+	if result {
+		// isTermux 返回 true 时，标志文件必须存在
+		if _, err := os.Stat("/data/data/com.termux/files/usr/etc/termux"); err != nil {
+			t.Fatal("isTermux returns true but termux marker doesn't exist")
+		}
+	}
+}
+
 func TestDetectBashPathTermux(t *testing.T) {
-	// 若 Termux bash 文件存在，则 detectBashPath 应返回 Termux 路径
-	termuxBash := "/data/data/com.termux/files/usr/bin/bash"
-	if _, err := os.Stat(termuxBash); err != nil {
+	if !isTermux() {
 		t.Skip("Not running on Termux, skipping")
 	}
 
 	path := detectBashPath()
-	if path != termuxBash {
-		t.Fatalf("On Termux, expected %s, got: %s", termuxBash, path)
+	expected := termuxPrefix() + "/bin/bash"
+	if path != expected {
+		t.Fatalf("On Termux, expected %s, got: %s", expected, path)
 	}
 }
 
@@ -73,6 +82,68 @@ func TestExecShellUsesTempDir(t *testing.T) {
 		if strings.HasPrefix(entry.Name(), "gocron_") && strings.HasSuffix(entry.Name(), ".sh") {
 			t.Fatalf("Temporary script file was not cleaned up: %s", filepath.Join(tempDir, entry.Name()))
 		}
+	}
+}
+
+func TestReadResolvConfDNS(t *testing.T) {
+	f, err := os.CreateTemp("", "resolv.conf.*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	content := "# comment\nnameserver 1.2.3.4\nnameserver 5.6.7.8\n"
+	if _, err := f.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	addr := readResolvConfDNS(f.Name())
+	if addr != "1.2.3.4:53" {
+		t.Fatalf("Expected 1.2.3.4:53, got: %s", addr)
+	}
+}
+
+func TestReadResolvConfDNSEmpty(t *testing.T) {
+	f, err := os.CreateTemp("", "resolv.conf.*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+	f.Close()
+
+	// 文件为空时回退到默认 DNS
+	addr := readResolvConfDNS(f.Name())
+	if addr != "114.114.114.114:53" {
+		t.Fatalf("Expected fallback 114.114.114.114:53, got: %s", addr)
+	}
+}
+
+func TestTermuxPrefix(t *testing.T) {
+	prefix := termuxPrefix()
+	if prefix != "/data/data/com.termux/files/usr" {
+		t.Fatalf("Expected fixed Termux prefix, got: %s", prefix)
+	}
+	if isTermux() {
+		if _, err := os.Stat(prefix); err != nil {
+			t.Fatalf("Termux prefix %s should exist when isTermux is true: %v", prefix, err)
+		}
+	}
+}
+
+func TestSetTermuxCACerts(t *testing.T) {
+	if !isTermux() {
+		t.Skip("Not running on Termux, skipping")
+	}
+
+	// 手动触发以确保 init 之后的状态一致
+	setTermuxCACerts()
+	certFile := os.Getenv("SSL_CERT_FILE")
+	if certFile == "" {
+		t.Fatal("Expected SSL_CERT_FILE to be set on Termux")
+	}
+	if _, err := os.Stat(certFile); err != nil {
+		t.Fatalf("SSL_CERT_FILE %s does not exist: %v", certFile, err)
 	}
 }
 
