@@ -84,10 +84,15 @@ package-windows: build-web
 	@echo "Building packages for Windows..."
 	bash ./package.sh -p windows -a "amd64"
 
+.PHONY: package-termux
+package-termux: build-web
+	@echo "Building packages for Termux (Android)..."
+	bash ./package.sh -p android -a "amd64,arm64"
+
 .PHONY: package-all
 package-all: build-web
 	@echo "Building packages for all platforms..."
-	bash ./package.sh -p "linux,darwin" -a "amd64,arm64"
+	bash ./package.sh -p "linux,darwin,android" -a "amd64,arm64"
 	bash ./package.sh -p "windows" -a "amd64"
 
 # 前端构建（gocronx-admin）

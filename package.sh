@@ -33,7 +33,8 @@ DEFAULT_OS=${GOHOSTOS}
 # 未指定ARCH,默认值
 DEFAULT_ARCH=${GOHOSTARCH}
 # 支持的系统
-SUPPORT_OS=(linux darwin windows)
+# android 编译时映射到 GOOS=linux（Termux 提供 Linux 用户空间）
+SUPPORT_OS=(linux darwin windows android)
 # 支持的架构
 SUPPORT_ARCH=(386 amd64 arm64)
  
@@ -130,8 +131,14 @@ build() {
                 FILENAME=${BINARY_NAME}
             fi
 
+            # android 映射到 linux（Termux 提供 Linux 用户空间）
+            local BUILD_OS="${OS}"
+            if [[ "${OS}" = "android" ]]; then
+                BUILD_OS="linux"
+            fi
+
             print_message "编译 ${BINARY_NAME} ${OS}-${ARCH} 版本"
-            env CGO_ENABLED=0 GOOS=${OS} GOARCH=${ARCH} go build -ldflags "${LDFLAGS}" -o ${BUILD_DIR}/${BINARY_NAME}-${OS}-${ARCH}/${FILENAME} ${MAIN_FILE}
+            env CGO_ENABLED=0 GOOS=${BUILD_OS} GOARCH=${ARCH} go build -ldflags "${LDFLAGS}" -o ${BUILD_DIR}/${BINARY_NAME}-${OS}-${ARCH}/${FILENAME} ${MAIN_FILE}
         done
     done
 }
