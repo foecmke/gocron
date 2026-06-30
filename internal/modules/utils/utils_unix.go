@@ -21,6 +21,17 @@ type Result struct {
 	err    error
 }
 
+// detectBashPath 根据当前系统环境检测 bash 路径。
+// Termux (Android) 下 bash 位于 /data/data/com.termux/files/usr/bin/bash，
+// 标准 Linux / macOS 下为 /bin/bash。
+func detectBashPath() string {
+	termuxBash := "/data/data/com.termux/files/usr/bin/bash"
+	if _, err := os.Stat(termuxBash); err == nil {
+		return termuxBash
+	}
+	return "/bin/bash"
+}
+
 // 执行shell命令，可设置执行超时时间
 // 改进：将命令写入临时脚本执行，即使超时或被取消，也会返回已产生的输出
 func ExecShell(ctx context.Context, command string) (string, error) {
@@ -29,8 +40,8 @@ func ExecShell(ctx context.Context, command string) (string, error) {
 	// 将换行符统一替换为Unix风格的\n
 	command = strings.ReplaceAll(command, "\r\n", "\n")
 
-	// 创建临时文件来存储命令，按照指定格式命名
-	tmpDir := "/tmp"
+	// 使用系统临时目录
+	tmpDir := os.TempDir()
 	timestamp := time.Now().Format("20060102150405")
 	scriptPattern := fmt.Sprintf("gocron_%s_*.sh", timestamp)
 
@@ -59,9 +70,10 @@ func ExecShell(ctx context.Context, command string) (string, error) {
 		return "", fmt.Errorf("设置脚本执行权限失败: %w", err)
 	}
 
-	// 使用 /bin/bash 命令执行脚本文件
+	// 根据当前系统环境检测 bash 路径，执行脚本文件
 	scriptPath := tmpFile.Name()
-	cmd := exec.Command("/bin/bash", scriptPath)
+	bashPath := detectBashPath()
+	cmd := exec.Command(bashPath, scriptPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
 	}

@@ -5,10 +5,76 @@ package utils
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestDetectBashPath(t *testing.T) {
+	path := detectBashPath()
+	if path == "" {
+		t.Fatal("Expected non-empty bash path")
+	}
+
+	// 验证返回的路径是 Termux 或标准 Linux/macOS 的合法 bash 路径
+	validPaths := []string{
+		"/data/data/com.termux/files/usr/bin/bash",
+		"/bin/bash",
+	}
+	found := false
+	for _, p := range validPaths {
+		if path == p {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Expected bash path to be one of %v, got: %s", validPaths, path)
+	}
+
+	// 验证返回的 bash 路径文件存在
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("Bash path %s does not exist: %v", path, err)
+	}
+}
+
+func TestDetectBashPathTermux(t *testing.T) {
+	// 若 Termux bash 文件存在，则 detectBashPath 应返回 Termux 路径
+	termuxBash := "/data/data/com.termux/files/usr/bin/bash"
+	if _, err := os.Stat(termuxBash); err != nil {
+		t.Skip("Not running on Termux, skipping")
+	}
+
+	path := detectBashPath()
+	if path != termuxBash {
+		t.Fatalf("On Termux, expected %s, got: %s", termuxBash, path)
+	}
+}
+
+func TestExecShellUsesTempDir(t *testing.T) {
+	ctx := context.Background()
+	output, err := ExecShell(ctx, "echo 'hello world'")
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if !strings.Contains(output, "hello world") {
+		t.Fatalf("Expected output to contain 'hello world', got: %s", output)
+	}
+
+	// 检查临时目录中没有遗留的脚本文件
+	tempDir := os.TempDir()
+	entries, err := os.ReadDir(tempDir)
+	if err != nil {
+		t.Fatalf("Failed to read temp dir: %v", err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "gocron_") && strings.HasSuffix(entry.Name(), ".sh") {
+			t.Fatalf("Temporary script file was not cleaned up: %s", filepath.Join(tempDir, entry.Name()))
+		}
+	}
+}
 
 func TestExecShellSuccess(t *testing.T) {
 	ctx := context.Background()
